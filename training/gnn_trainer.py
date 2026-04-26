@@ -131,7 +131,7 @@ class GNNTrainer:
         patience:  int = 15,
     ) -> dict:
         early_stop = EarlyStopping(patience=patience)
-        best_val_loss = np.inf
+        best_val_acc = 0.0
         history = {
             "train_loss": [], "val_loss": [],
             "train_type_acc": [], "val_type_acc": [],
@@ -162,16 +162,16 @@ class GNNTrainer:
                 f"LR {current_lr:.2e}"
             )
 
-            # Save best checkpoint
-            if val_metrics["loss"] < best_val_loss:
-                best_val_loss = val_metrics["loss"]
+            # Save best checkpoint by val accuracy (better aligns with final eval metric)
+            if val_metrics["type_accuracy"] > best_val_acc:
+                best_val_acc = val_metrics["type_accuracy"]
                 self.save_checkpoint("best_gnn.pt", epoch, val_metrics)
 
             if early_stop.step(val_metrics["loss"]):
                 print(f"Early stopping triggered at epoch {epoch}")
                 break
 
-        print(f"\nBest val loss: {best_val_loss:.4f}")
+        print(f"\nBest val accuracy: {best_val_acc:.4f}")
         return history
 
     # ------------------------------------------------------------------

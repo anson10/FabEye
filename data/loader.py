@@ -12,8 +12,7 @@ Converts synthetic_wafers.json into PyG Data objects where:
 import json
 import torch
 import numpy as np
-from pathlib import Path
-from torch.utils.data import random_split
+from torch.utils.data import random_split, WeightedRandomSampler
 from torch_geometric.data import Data, Dataset
 from torch_geometric.loader import DataLoader
 
@@ -31,6 +30,13 @@ class WaferGraphDataset(Dataset):
         s = self.samples[idx]
 
         x = torch.tensor(s["node_features"], dtype=torch.float)  # [n_steps, feat_dim]
+
+        # One-hot step encoding: each of the 8 steps has a unique identity column.
+        # Without this the GNN applies the same weights to all nodes, so it can't
+        # distinguish "high temp at oxidation" from "high temp at annealing".
+        n_steps = x.shape[0]
+        one_hot = torch.eye(n_steps)                # [8, 8]
+        x = torch.cat([x, one_hot], dim=1)          # [8, 3+8=11]
 
         edges = s["adjacency"]
         if edges:
@@ -59,22 +65,39 @@ def create_data_loaders(
     train_ratio: float = 0.7,
     val_ratio: float = 0.15,
     seed: int = 42,
+    balanced: bool = False,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
-    """Split dataset into train/val/test and return DataLoaders."""
+    """
+    Split dataset into train/val/test and return DataLoaders.
+
+    balanced=True uses WeightedRandomSampler so every training batch has
+    approximately equal class representation. This is cleaner than weighted
+    CE loss because it doesn't distort the gradient magnitude.
+    """
     dataset = WaferGraphDataset(json_path)
     n = len(dataset)
     n_train = int(n * train_ratio)
-    n_val = int(n * val_ratio)
-    n_test = n - n_train - n_val
+    n_val   = int(n * val_ratio)
+    n_test  = n - n_train - n_val
 
     generator = torch.Generator().manual_seed(seed)
     train_ds, val_ds, test_ds = random_split(dataset, [n_train, n_val, n_test], generator=generator)
 
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
-    val_loader   = DataLoader(val_ds,   batch_size=batch_size, shuffle=False)
-    test_loader  = DataLoader(test_ds,  batch_size=batch_size, shuffle=False)
+    if balanced:
+        # Compute per-sample weights: rare classes get higher sampling probability
+        labels  = [dataset[i].y_type.item() for i in train_ds.indices]
+        counts  = np.bincount(labels, minlength=6).astype(float)
+        weights = 1.0 / counts                          # inverse frequency
+        sample_weights = torch.tensor([weights[l] for l in labels], dtype=torch.float)
+        sampler = WeightedRandomSampler(sample_weights, num_samples=len(sample_weights), replacement=True)
+        train_loader = DataLoader(train_ds, batch_size=batch_size, sampler=sampler)
+    else:
+        train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
 
-    print(f"Dataset split — train: {n_train}, val: {n_val}, test: {n_test}")
+    val_loader  = DataLoader(val_ds,  batch_size=batch_size, shuffle=False)
+    test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
+
+    print(f"Dataset split — train: {n_train}, val: {n_val}, test: {n_test}  (balanced={balanced})")
     return train_loader, val_loader, test_loader
 
 
