@@ -11,48 +11,57 @@ across the process-step graph, then branches into three prediction heads:
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import GCNConv, global_mean_pool
+from torch_geometric.nn import GCNConv, global_mean_pool, global_max_pool
 
 
 class DefectPredictionGNN(nn.Module):
     """
     Args:
-        in_channels:   number of input features per node (process-step params)
+        in_channels:     number of input features per node (process-step params)
         hidden_channels: width of GCN hidden layers
-        n_defect_types: number of defect classes (default 6)
-        dropout:       dropout probability applied after each GCN layer
+        n_defect_types:  number of defect classes (default 6)
+        dropout:         dropout probability applied after each GCN layer
     """
 
     def __init__(
         self,
-        in_channels: int = 3,
-        hidden_channels: int = 64,
+        in_channels: int = 11,
+        hidden_channels: int = 128,
         n_defect_types: int = 6,
-        dropout: float = 0.3,
+        dropout: float = 0.2,
+        n_steps: int = 8,
     ):
         super().__init__()
         self.dropout = dropout
+        self.n_steps = n_steps
+        self.in_channels = in_channels
 
-        # Three GCN message-passing layers
+        # Three GCN layers (4 over-smooths an 8-node chain)
         self.conv1 = GCNConv(in_channels, hidden_channels)
         self.conv2 = GCNConv(hidden_channels, hidden_channels)
         self.conv3 = GCNConv(hidden_channels, hidden_channels)
 
-        # Batch-norm after each conv for training stability
         self.bn1 = nn.BatchNorm1d(hidden_channels)
         self.bn2 = nn.BatchNorm1d(hidden_channels)
         self.bn3 = nn.BatchNorm1d(hidden_channels)
 
-        # Prediction heads (operate on graph-level embedding)
+        # max/mean pooling + flat bypass of the 3 raw features per step (same 24 features RF uses)
+        # one-hot columns are excluded from the bypass to avoid redundancy/noise
+        n_raw = 3
+        pool_dim = hidden_channels * 2 + n_steps * n_raw
+        self.n_raw = n_raw
+
         self.type_head = nn.Sequential(
-            nn.Linear(hidden_channels, hidden_channels // 2),
+            nn.Linear(pool_dim, hidden_channels),
             nn.ReLU(),
             nn.Dropout(dropout),
+            nn.Linear(hidden_channels, hidden_channels // 2),
+            nn.ReLU(),
             nn.Linear(hidden_channels // 2, n_defect_types),
         )
 
         self.location_head = nn.Sequential(
-            nn.Linear(hidden_channels, hidden_channels // 2),
+            nn.Linear(pool_dim, hidden_channels // 2),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(hidden_channels // 2, 2),
@@ -60,7 +69,7 @@ class DefectPredictionGNN(nn.Module):
         )
 
         self.severity_head = nn.Sequential(
-            nn.Linear(hidden_channels, hidden_channels // 4),
+            nn.Linear(pool_dim, hidden_channels // 4),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(hidden_channels // 4, 1),
@@ -72,14 +81,13 @@ class DefectPredictionGNN(nn.Module):
         Args:
             x:          node features  [total_nodes, in_channels]
             edge_index: edge list      [2, total_edges]
-            batch:      batch vector   [total_nodes]  (PyG batching)
+            batch:      batch vector   [total_nodes]
 
         Returns:
             type_logits:  [B, n_defect_types]
             location:     [B, 2]   values in [0,1]
             severity:     [B, 1]   values in [0,1]
         """
-        # GCN layers with residual-style skip where dimensions match
         h = F.relu(self.bn1(self.conv1(x, edge_index)))
         h = F.dropout(h, p=self.dropout, training=self.training)
 
@@ -88,8 +96,15 @@ class DefectPredictionGNN(nn.Module):
 
         h = F.relu(self.bn3(self.conv3(h, edge_index)))
 
-        # Pool all node embeddings to a single graph-level vector
-        graph_emb = global_mean_pool(h, batch)  # [B, hidden_channels]
+        B = int(batch.max().item()) + 1
+        # Use only the 3 raw features per step (drop one-hot columns) — same signal as RF's 24 features
+        raw_x = x[:, :self.n_raw].contiguous().view(B, self.n_steps * self.n_raw)  # [B, 24]
+
+        graph_emb = torch.cat([
+            global_max_pool(h, batch),
+            global_mean_pool(h, batch),
+            raw_x,
+        ], dim=-1)  # [B, hidden_channels*2 + n_steps*3]
 
         type_logits = self.type_head(graph_emb)
         location    = self.location_head(graph_emb)
@@ -117,12 +132,14 @@ class DefectLoss(nn.Module):
         type_weight: float = 1.0,
         location_weight: float = 0.5,
         severity_weight: float = 0.5,
+        class_weights: torch.Tensor = None,
     ):
         super().__init__()
         self.type_weight     = type_weight
         self.location_weight = location_weight
         self.severity_weight = severity_weight
-        self.ce_loss  = nn.CrossEntropyLoss()
+        # class_weights penalise rare defect types more to fix class imbalance
+        self.ce_loss  = nn.CrossEntropyLoss(weight=class_weights)
         self.mse_loss = nn.MSELoss()
 
     def forward(
@@ -177,7 +194,7 @@ if __name__ == "__main__":
         return Data(x=x, edge_index=edge_index)
 
     batch = Batch.from_data_list([_make_dummy(), _make_dummy()])
-    model = DefectPredictionGNN(in_channels=3, hidden_channels=64)
+    model = DefectPredictionGNN(in_channels=3, hidden_channels=64, n_steps=8)
     type_logits, location, severity = model(batch.x, batch.edge_index, batch.batch)
 
     print(f"type_logits shape: {type_logits.shape}")   # [2, 6]
