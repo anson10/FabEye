@@ -1,0 +1,45 @@
+# Generated data (regenerate with python3 data/generator.py)
+data/raw/
+data/wafer_images/
+
+# Model outputs
+results/
+checkpoints/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+venv/
+env/
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Docs kept local only
+CLAUDE.md
+GIT_INTEGRATED.md
+git_workflow.md
+report.md
+Week1_report.md
