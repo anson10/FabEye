@@ -190,11 +190,13 @@ class CNNTrainer:
         self,
         train_loader,
         val_loader,
-        n_epochs: int = 20,
-        patience: int = 10,
+        n_epochs:    int  = 20,
+        patience:    int  = 10,
+        is_main:     bool = True,
+        ddp_sampler       = None,
     ) -> dict:
-        early_stop   = EarlyStopping(patience=patience)
-        best_val_f1  = 0.0
+        early_stop  = EarlyStopping(patience=patience)
+        best_val_f1 = 0.0
         history = {
             "train_loss": [], "val_loss": [],
             "val_precision": [], "val_recall": [], "val_f1": [],
@@ -202,6 +204,9 @@ class CNNTrainer:
         }
 
         for epoch in range(1, n_epochs + 1):
+            if ddp_sampler is not None:
+                ddp_sampler.set_epoch(epoch)   # ensures different shuffles per epoch across GPUs
+
             train_metrics = self.train_epoch(train_loader)
             val_metrics   = self.validate_epoch(val_loader)
 
@@ -216,23 +221,26 @@ class CNNTrainer:
             history["val_cls_acc"].append(val_metrics["cls_acc"])
             history["lr"].append(current_lr)
 
-            print(
-                f"Epoch {epoch:03d}/{n_epochs} | "
-                f"Loss {train_metrics['loss']:.4f}/{val_metrics['loss']:.4f} | "
-                f"P {val_metrics['precision']:.3f}  R {val_metrics['recall']:.3f}  "
-                f"F1 {val_metrics['f1']:.3f}  Cls {val_metrics['cls_acc']:.3f} | "
-                f"LR {current_lr:.2e}"
-            )
+            if is_main:
+                print(
+                    f"Epoch {epoch:03d}/{n_epochs} | "
+                    f"Loss {train_metrics['loss']:.4f}/{val_metrics['loss']:.4f} | "
+                    f"P {val_metrics['precision']:.3f}  R {val_metrics['recall']:.3f}  "
+                    f"F1 {val_metrics['f1']:.3f}  Cls {val_metrics['cls_acc']:.3f} | "
+                    f"LR {current_lr:.2e}"
+                )
 
-            if val_metrics["f1"] > best_val_f1:
-                best_val_f1 = val_metrics["f1"]
-                self.save_checkpoint("best_cnn.pt", epoch, val_metrics)
+                if val_metrics["f1"] > best_val_f1:
+                    best_val_f1 = val_metrics["f1"]
+                    self.save_checkpoint("best_cnn.pt", epoch, val_metrics)
 
             if early_stop.step(val_metrics["loss"]):
-                print(f"Early stopping triggered at epoch {epoch}")
+                if is_main:
+                    print(f"Early stopping triggered at epoch {epoch}")
                 break
 
-        print(f"\nBest val F1: {best_val_f1:.4f}")
+        if is_main:
+            print(f"\nBest val F1: {best_val_f1:.4f}")
         return history
 
     # ------------------------------------------------------------------
