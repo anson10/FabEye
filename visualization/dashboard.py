@@ -29,25 +29,31 @@ st.markdown("""
     /* Main background */
     .stApp { background-color: #0f1117; }
 
-    /* Hero banner */
+    /* Hero banner — compact single-line */
     .hero {
         background: linear-gradient(135deg, #1a1f35 0%, #0d1b2a 100%);
         border: 1px solid #2a3550;
-        border-radius: 12px;
-        padding: 2rem 2.5rem;
-        margin-bottom: 1.5rem;
+        border-radius: 10px;
+        padding: 0.65rem 1.4rem;
+        margin-bottom: 0.6rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
     }
     .hero h1 {
-        font-size: 2.4rem;
+        font-size: 1.45rem;
         font-weight: 800;
         color: #e8eaf0;
-        margin: 0 0 0.3rem 0;
-        letter-spacing: -0.5px;
+        margin: 0;
+        letter-spacing: -0.3px;
+        white-space: nowrap;
     }
     .hero .subtitle {
-        font-size: 1.05rem;
+        font-size: 0.85rem;
         color: #7a8aaa;
-        margin: 0 0 1rem 0;
+        margin: 0;
+        flex: 1;
     }
     .hero .badge {
         display: inline-block;
@@ -55,10 +61,11 @@ st.markdown("""
         color: #5b9bd5;
         border: 1px solid #2d5a8e;
         border-radius: 20px;
-        padding: 2px 12px;
-        font-size: 0.78rem;
-        margin-right: 6px;
+        padding: 1px 10px;
+        font-size: 0.73rem;
+        margin-right: 4px;
         font-weight: 600;
+        white-space: nowrap;
     }
 
     /* Section headers */
@@ -276,16 +283,6 @@ st.markdown("""
   <span class="badge">6 defect types</span>
 </div>
 """, unsafe_allow_html=True)
-
-st.markdown("""
-FabEye combines two machine learning stages: a **Graph Neural Network** that predicts defects
-from process parameters before a wafer is inspected, and a **Convolutional Neural Network**
-(Faster R-CNN) that detects defects visually in inspection images. The integration layer
-answers the core research question — *does the parameter anomaly the GNN detected actually
-produce the visual defect the CNN sees?*
-""")
-
-st.divider()
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
