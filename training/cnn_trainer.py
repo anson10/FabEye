@@ -203,14 +203,21 @@ class CNNTrainer:
             "val_cls_acc": [], "lr": [],
         }
 
+        last_val_metrics = {"loss": 0, "precision": 0, "recall": 0, "f1": 0, "cls_acc": 0, "tp": 0, "fp": 0, "fn": 0}
+
         for epoch in range(1, n_epochs + 1):
             if ddp_sampler is not None:
-                ddp_sampler.set_epoch(epoch)   # ensures different shuffles per epoch across GPUs
+                ddp_sampler.set_epoch(epoch)
 
             train_metrics = self.train_epoch(train_loader)
-            val_metrics   = self.validate_epoch(val_loader)
 
-            current_lr = self.optimizer.param_groups[0]["lr"]
+            # validate every 2 epochs and always on the last epoch
+            do_validate = (epoch % 2 == 0) or (epoch == n_epochs)
+            if do_validate:
+                last_val_metrics = self.validate_epoch(val_loader)
+
+            val_metrics = last_val_metrics
+            current_lr  = self.optimizer.param_groups[0]["lr"]
             self.scheduler.step(val_metrics["loss"])
 
             history["train_loss"].append(train_metrics["loss"])
@@ -222,19 +229,20 @@ class CNNTrainer:
             history["lr"].append(current_lr)
 
             if is_main:
+                val_tag = "" if do_validate else " (cached)"
                 print(
                     f"Epoch {epoch:03d}/{n_epochs} | "
-                    f"Loss {train_metrics['loss']:.4f}/{val_metrics['loss']:.4f} | "
-                    f"P {val_metrics['precision']:.3f}  R {val_metrics['recall']:.3f}  "
+                    f"TrainLoss {train_metrics['loss']:.4f} | "
+                    f"Val{val_tag}: P {val_metrics['precision']:.3f}  R {val_metrics['recall']:.3f}  "
                     f"F1 {val_metrics['f1']:.3f}  Cls {val_metrics['cls_acc']:.3f} | "
                     f"LR {current_lr:.2e}"
                 )
 
-                if val_metrics["f1"] > best_val_f1:
+                if do_validate and val_metrics["f1"] > best_val_f1:
                     best_val_f1 = val_metrics["f1"]
                     self.save_checkpoint("best_cnn.pt", epoch, val_metrics)
 
-            if early_stop.step(val_metrics["loss"]):
+            if do_validate and early_stop.step(val_metrics["loss"]):
                 if is_main:
                     print(f"Early stopping triggered at epoch {epoch}")
                 break

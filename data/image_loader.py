@@ -115,7 +115,7 @@ def create_image_loaders(
     train_ratio: float = 0.7,
     val_ratio:   float = 0.15,
     seed:        int   = 42,
-    num_workers: int   = 4,
+    num_workers: int   = 8,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
     """
     Split dataset into train/val/test and return DataLoaders.

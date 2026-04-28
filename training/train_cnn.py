@@ -28,8 +28,8 @@ from training.utils import set_seed, plot_training_curves
 def parse_args():
     p = argparse.ArgumentParser(description="Train CNN defect detector")
     p.add_argument("--image-dir",       default="data/wafer_images")
-    p.add_argument("--epochs",          type=int,   default=20)
-    p.add_argument("--batch-size",      type=int,   default=16)
+    p.add_argument("--epochs",          type=int,   default=10)
+    p.add_argument("--batch-size",      type=int,   default=8)
     p.add_argument("--lr",              type=float, default=5e-3)
     p.add_argument("--patience",        type=int,   default=8)
     p.add_argument("--backbone-layers", type=int,   default=3)
