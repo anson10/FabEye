@@ -216,30 +216,28 @@ def result_image(path, caption=""):
     else:
         st.info(f"Run `python3 evaluation/analyze_alignment.py` to generate {Path(path).name}")
 
-def pie_chart(counts, labels, colors, title=""):
-    """Pie chart with overlap-safe labels — only show pct for slices > 4%."""
-    total = sum(counts)
-    nz    = [(c, l, col) for c, l, col in zip(counts, labels, colors) if c > 0]
+def outcome_bar(counts, labels, colors, total):
+    """Horizontal bar chart for outcome breakdown — never overlaps."""
+    nz = [(c, l, col) for c, l, col in zip(counts, labels, colors) if c > 0]
     c_, l_, col_ = zip(*nz)
 
-    fig, ax = plt.subplots(figsize=(4.5, 4.5))
-    wedges, texts, autotexts = ax.pie(
-        c_, colors=col_, startangle=90,
-        autopct=lambda p: f"{p:.1f}%" if p > 4 else "",
-        pctdistance=0.75,
-        wedgeprops=dict(linewidth=0.8, edgecolor="#0f1117"),
-    )
-    for t in autotexts:
-        t.set_fontsize(8)
-        t.set_color("#e8eaf0")
+    fig, ax = plt.subplots(figsize=(7, len(c_) * 0.65 + 0.6))
+    y = range(len(c_))
+    bars = ax.barh(list(y), c_, color=col_, alpha=0.88,
+                   edgecolor="#0f1117", linewidth=0.5, height=0.55)
+    ax.set_yticks(list(y))
+    ax.set_yticklabels(l_, fontsize=10)
+    ax.invert_yaxis()
+    ax.set_xlabel("Wafer count", fontsize=9)
+    ax.grid(axis="x", alpha=0.25)
+    ax.spines[["top","right","left"]].set_visible(False)
 
-    ax.legend(
-        wedges, [f"{l} ({c})" for l, c in zip(l_, c_)],
-        loc="lower center", bbox_to_anchor=(0.5, -0.25),
-        ncol=2, fontsize=7.5, framealpha=0.0,
-    )
-    if title:
-        ax.set_title(title, fontsize=10, pad=8)
+    for bar, count in zip(bars, c_):
+        pct = count / total * 100
+        ax.text(bar.get_width() + total * 0.005, bar.get_y() + bar.get_height() / 2,
+                f"{count:,}  ({pct:.1f}%)",
+                va="center", ha="left", fontsize=9, color="#c8d0e0")
+    ax.set_xlim(0, max(c_) * 1.28)
     fig.tight_layout()
     return fig
 
@@ -547,24 +545,25 @@ with tab4:
               "✅ <25% met" if fn_ok else "❌ above target")
 
     st.divider()
-    col_l, col_r = st.columns([1, 1])
+    labels = ["True Negative", "Aligned", "Type Mismatch",
+              "Loc Mismatch",  "GNN Only", "CNN Only"]
+    counts = [al["true_negative"], al["aligned"],   al["type_mismatch"],
+              al["loc_mismatch"],  al["gnn_only"],  al["cnn_only"]]
+    colors = ["#2ecc71","#3498db","#e74c3c","#e67e22","#9b59b6","#f39c12"]
+
+    col_l, col_r = st.columns([1.4, 1])
 
     with col_l:
         section("Wafer Outcome Distribution")
-        labels = ["True Negative", "Aligned", "Type Mismatch",
-                  "Loc Mismatch",  "GNN Only", "CNN Only"]
-        counts = [al["true_negative"], al["aligned"],    al["type_mismatch"],
-                  al["loc_mismatch"],  al["gnn_only"],   al["cnn_only"]]
-        colors = ["#2ecc71","#3498db","#e74c3c","#e67e22","#9b59b6","#f39c12"]
-        fig = pie_chart(counts, labels, colors)
+        fig = outcome_bar(counts, labels, colors, al["n_test"])
         st.pyplot(fig); plt.close()
 
     with col_r:
-        section("Outcome Counts")
+        section("Outcome Summary")
         df = pd.DataFrame({
             "Outcome": labels,
             "Count":   counts,
-            "% of Test Set": [f"{c/al['n_test']*100:.1f}%" for c in counts],
+            "% of Test": [f"{c/al['n_test']*100:.1f}%" for c in counts],
         })
         st.dataframe(df, use_container_width=True, hide_index=True)
 
@@ -583,8 +582,38 @@ with tab4:
         st.dataframe(tgt, use_container_width=True, hide_index=True)
 
     st.divider()
-    section("Alignment Analysis Plot")
-    result_image(RESULTS / "alignment_analysis.png")
+    section("Alignment Metrics vs Targets")
+    metric_names  = ["Type Alignment", "Full Alignment", "FP Rate", "FN Rate"]
+    metric_values = [al["alignment_rate"], al["full_alignment_rate"],
+                     al["fp_rate"],        al["fn_rate"]]
+    targets_map   = {"Type Alignment": 0.65, "FP Rate": 0.30, "FN Rate": 0.25}
+    bar_colors    = ["#3498db","#5dade2","#e67e22","#e67e22"]
+
+    fig, ax = plt.subplots(figsize=(9, 3.8))
+    x = np.arange(len(metric_names))
+    bars = ax.bar(x, metric_values, color=bar_colors, alpha=0.88,
+                  edgecolor="#0f1117", linewidth=0.5, width=0.5)
+    for name, tval, color in [("Type Alignment", 0.65, "#2ecc71"),
+                               ("FP Rate", 0.30, "#e74c3c"),
+                               ("FN Rate", 0.25, "#e74c3c")]:
+        xi = metric_names.index(name)
+        ax.plot([xi - 0.32, xi + 0.32], [tval, tval],
+                color=color, linewidth=2.5, linestyle="--",
+                label=f"Target {name}")
+    for bar, val in zip(bars, metric_values):
+        ax.text(bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 0.012,
+                f"{val*100:.1f}%", ha="center", va="bottom",
+                fontsize=11, fontweight="bold", color="#e8eaf0")
+    ax.set_xticks(x)
+    ax.set_xticklabels(metric_names, fontsize=11)
+    ax.set_ylim(0, 1.12)
+    ax.set_ylabel("Rate", fontsize=10)
+    ax.legend(fontsize=8, loc="upper right")
+    ax.grid(axis="y", alpha=0.25)
+    ax.spines[["top","right"]].set_visible(False)
+    fig.tight_layout()
+    st.pyplot(fig); plt.close()
 
     tech_detail("""
 <b>Alignment definition:</b> A wafer is <b>type-aligned</b> when both models predict the same
@@ -612,11 +641,73 @@ with tab5:
     validating that the models have learned genuine causal relationships.
     """)
 
-    corr_path = RESULTS / "parameter_correlation.png"
-    if corr_path.exists():
-        st.image(str(corr_path), width=900)
+    if DATA_RAW.exists():
+        _wafers_corr = load_wafer_data()
+        _step_names_corr = ["oxidation","lithography","etching","deposition",
+                            "doping","cmp","cleaning","annealing"]
+        _param_names_corr = [
+            ["temperature","pressure","duration"],
+            ["exposure_dose","focus_offset","wavelength"],
+            ["etch_rate","selectivity","duration"],
+            ["temperature","rate","thickness"],
+            ["concentration","energy","dose"],
+            ["pressure","velocity","slurry_conc"],
+            ["chemical_conc","temperature","duration"],
+            ["temperature","duration","atmosphere"],
+        ]
+        _feat_labels = [f"{s}\n{p}" for s, ps in zip(_step_names_corr, _param_names_corr)
+                        for p in ps]
+
+        X_corr = np.array([w["node_features"] for w in _wafers_corr],
+                          dtype=np.float32).reshape(len(_wafers_corr), -1)
+        y_corr = np.array([w["defect"]["defect_type"] for w in _wafers_corr])
+        n_cls  = len(DEFECT_NAMES); n_ft = X_corr.shape[1]
+
+        cm_means = np.zeros((n_cls, n_ft))
+        for c in range(n_cls):
+            mask = y_corr == c
+            if mask.sum() > 0:
+                cm_means[c] = X_corr[mask].mean(axis=0)
+        col_min = cm_means.min(axis=0, keepdims=True)
+        col_max = cm_means.max(axis=0, keepdims=True)
+        cm_norm = (cm_means - col_min) / (cm_means.max(axis=0, keepdims=True) - col_min + 1e-8)
+
+        causal_cells = {
+            (4, _feat_labels.index("oxidation\ntemperature")): "★",
+            (4, _feat_labels.index("oxidation\nduration")):    "★",
+            (2, _feat_labels.index("cmp\npressure")):          "★",
+            (2, _feat_labels.index("cmp\nslurry_conc")):       "★",
+            (1, _feat_labels.index("cleaning\nchemical_conc")):"★",
+            (3, _feat_labels.index("doping\nconcentration")):  "★",
+            (5, _feat_labels.index("deposition\nrate")):       "★",
+        }
+
+        fig, ax = plt.subplots(figsize=(20, 4.5))
+        im = ax.imshow(cm_norm, aspect="auto", cmap="YlOrRd", vmin=0, vmax=1)
+        cbar = plt.colorbar(im, ax=ax, fraction=0.015, pad=0.01)
+        cbar.set_label("Normalised mean", fontsize=9, color="#8090aa")
+        cbar.ax.yaxis.set_tick_params(color="#8090aa")
+        plt.setp(cbar.ax.yaxis.get_ticklabels(), color="#8090aa", fontsize=8)
+
+        ax.set_xticks(range(n_ft))
+        ax.set_xticklabels(_feat_labels, rotation=55, ha="right", fontsize=7.5)
+        ax.set_yticks(range(n_cls))
+        ax.set_yticklabels(DEFECT_NAMES, fontsize=10)
+        ax.set_title("Parameter-Defect Correlation  (★ = known causal rule)",
+                     fontsize=11, pad=10)
+
+        for (row, col_idx), marker in causal_cells.items():
+            ax.text(col_idx, row, marker, ha="center", va="center",
+                    fontsize=12, color="#1a6bcc", fontweight="bold")
+
+        # Vertical separators between process steps
+        for sep in [3, 6, 9, 12, 15, 18, 21]:
+            ax.axvline(sep - 0.5, color="#0f1117", linewidth=1.5, alpha=0.6)
+
+        fig.tight_layout()
+        st.pyplot(fig); plt.close()
     else:
-        st.info("Run `python3 evaluation/analyze_alignment.py` to generate this plot.")
+        st.info("Raw data not found. Run `python3 data/generator.py --n 10000` first.")
 
     st.divider()
     section("Causal Rules Reference")
