@@ -169,7 +169,7 @@ def _defect_bbox(defect_type: int, px: int, py: int, severity: float) -> list[in
 
 # ── main generator ────────────────────────────────────────────────────────────
 
-def _render_one(args: tuple) -> dict | None:
+def _render_one(args: tuple):
     """Render a single wafer image — top-level for multiprocessing."""
     idx, wafer, out_dir, seed = args
     wafer_id = wafer["wafer_id"]
