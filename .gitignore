@@ -2,8 +2,8 @@
 data/raw/
 data/wafer_images/
 
-# Model outputs
-results/
+# Model outputs — ignore everything except metrics and plots
+results/*
 !results/*.json
 !results/*.png
 checkpoints/
