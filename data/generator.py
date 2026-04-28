@@ -222,5 +222,11 @@ class WaferDataGenerator:
 
 
 if __name__ == "__main__":
-    gen = WaferDataGenerator(n_wafers=2000, seed=42)
-    gen.save("data/raw/synthetic_wafers.json")
+    import argparse
+    p = argparse.ArgumentParser()
+    p.add_argument("--n",    type=int, default=10000)
+    p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--out",  default="data/raw/synthetic_wafers.json")
+    args = p.parse_args()
+    gen = WaferDataGenerator(n_wafers=args.n, seed=args.seed)
+    gen.save(args.out)
