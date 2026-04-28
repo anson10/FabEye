@@ -6,11 +6,10 @@ linking manufacturing parameters to defect outcomes.
 """
 
 import json
-import random
 import numpy as np
 from pathlib import Path
 from dataclasses import dataclass, asdict
-from typing import Optional
+from multiprocessing import Pool, cpu_count
 
 DEFECT_TYPES = {
     0: "none",
@@ -171,35 +170,31 @@ def _build_adjacency(n_steps: int) -> list[list[int]]:
     return edges
 
 
+def _generate_one(args: tuple) -> dict:
+    """Generate a single wafer sample — top-level so multiprocessing can pickle it."""
+    i, seed = args
+    rng = np.random.default_rng(seed + i)
+    steps = [ProcessStep(step_name=name, params=_sample_step_params(name, rng)) for name in PROCESS_STEPS]
+    defect = _compute_defect(steps, rng)
+    return asdict(WaferSample(
+        wafer_id=f"W_{i:06d}",
+        process_steps=[{"step": s.step_name, "params": s.params} for s in steps],
+        defect=asdict(defect),
+        node_features=[_step_to_feature_vector(s) for s in steps],
+        adjacency=_build_adjacency(len(steps)),
+    ))
+
+
 class WaferDataGenerator:
-    def __init__(self, n_wafers: int = 2000, seed: int = 42):
+    def __init__(self, n_wafers: int = 10000, seed: int = 42):
         self.n_wafers = n_wafers
         self.seed = seed
-        self.rng = np.random.default_rng(seed)
 
     def generate(self) -> list[dict]:
-        samples = []
-        for i in range(self.n_wafers):
-            steps = [
-                ProcessStep(
-                    step_name=name,
-                    params=_sample_step_params(name, self.rng)
-                )
-                for name in PROCESS_STEPS
-            ]
-            defect = _compute_defect(steps, self.rng)
-            node_features = [_step_to_feature_vector(s) for s in steps]
-            adjacency = _build_adjacency(len(steps))
-
-            sample = WaferSample(
-                wafer_id=f"W_{i:06d}",
-                process_steps=[{"step": s.step_name, "params": s.params} for s in steps],
-                defect=asdict(defect),
-                node_features=node_features,
-                adjacency=adjacency,
-            )
-            samples.append(asdict(sample))
-
+        workers = cpu_count()
+        print(f"Generating {self.n_wafers} wafers using {workers} CPU cores...")
+        with Pool(workers) as pool:
+            samples = pool.map(_generate_one, [(i, self.seed) for i in range(self.n_wafers)])
         return samples
 
     def save(self, output_path: str = "data/raw/synthetic_wafers.json") -> str:
