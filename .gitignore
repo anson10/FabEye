@@ -4,6 +4,8 @@ data/wafer_images/
 
 # Model outputs
 results/
+!results/*.json
+!results/*.png
 checkpoints/
 
 # Python
