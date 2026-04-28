@@ -23,7 +23,7 @@ def parse_args():
     p = argparse.ArgumentParser(description="Train CNN defect detector")
     p.add_argument("--image-dir",       default="data/wafer_images")
     p.add_argument("--epochs",          type=int,   default=20)
-    p.add_argument("--batch-size",      type=int,   default=4)
+    p.add_argument("--batch-size",      type=int,   default=16)
     p.add_argument("--lr",              type=float, default=5e-3)
     p.add_argument("--patience",        type=int,   default=8)
     p.add_argument("--backbone-layers", type=int,   default=3,
@@ -91,6 +91,12 @@ def main():
         nms_iou_threshold=args.iou_thresh,
     )
     print(f"Model parameters: {model.n_parameters:,}")
+
+    n_gpus = torch.cuda.device_count()
+    print(f"GPUs available: {n_gpus}")
+    if n_gpus > 1:
+        model.model = torch.nn.DataParallel(model.model)
+        print(f"Using DataParallel across {n_gpus} GPUs")
 
     # SGD with momentum works better than Adam for Faster R-CNN fine-tuning
     params = [p for p in model.parameters() if p.requires_grad]
