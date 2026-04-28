@@ -25,6 +25,7 @@ import json
 import os
 import random
 from pathlib import Path
+from multiprocessing import Pool, cpu_count
 
 import cv2
 import numpy as np
@@ -168,91 +169,82 @@ def _defect_bbox(defect_type: int, px: int, py: int, severity: float) -> list[in
 
 # ── main generator ────────────────────────────────────────────────────────────
 
-def generate_images(
-    json_path: str  = "data/raw/synthetic_wafers.json",
-    out_dir:   str  = "data/wafer_images",
-    n:         int  = None,
-    seed:      int  = 42,
-) -> str:
-    """
-    Generate PNG images for each wafer in the JSON.
+def _render_one(args: tuple) -> dict | None:
+    """Render a single wafer image — top-level for multiprocessing."""
+    idx, wafer, out_dir, seed = args
+    wafer_id = wafer["wafer_id"]
+    defect   = wafer["defect"]
+    dtype    = defect["defect_type"]
+    lx, ly   = defect["location_x"], defect["location_y"]
+    severity = defect["severity"]
 
-    Returns path to the COCO-format annotation file.
-    """
+    rng = np.random.default_rng(seed + idx)
+    img = _make_wafer_base(rng)
+
+    px = py = 0
+    if dtype > 0:
+        px, py = _loc_to_px(lx, ly)
+        _RENDERERS[dtype](img, px, py, severity, rng)
+
+    img_u8  = (np.clip(img, 0.0, 1.0) * 255).astype(np.uint8)
+    img_rgb = cv2.cvtColor(img_u8, cv2.COLOR_GRAY2BGR)
+    fname   = f"{wafer_id}.png"
+    cv2.imwrite(os.path.join(out_dir, fname), img_rgb)
+
+    img_entry = {"id": idx, "file_name": fname, "width": IMAGE_SIZE, "height": IMAGE_SIZE, "wafer_id": wafer_id}
+
+    ann_entry = None
+    if dtype > 0:
+        bbox = _defect_bbox(dtype, px, py, severity)
+        ann_entry = {
+            "id":          idx,
+            "image_id":    idx,
+            "category_id": dtype,
+            "bbox":        bbox,
+            "area":        bbox[2] * bbox[3],
+            "iscrowd":     0,
+            "severity":    severity,
+        }
+    return img_entry, ann_entry
+
+
+def generate_images(
+    json_path: str = "data/raw/synthetic_wafers.json",
+    out_dir:   str = "data/wafer_images",
+    n:         int = None,
+    seed:      int = 42,
+) -> str:
     os.makedirs(out_dir, exist_ok=True)
 
     with open(json_path) as f:
         wafers = json.load(f)
-
     if n is not None:
         wafers = wafers[:n]
 
-    rng_global = np.random.default_rng(seed)
-    random.seed(seed)
+    workers = cpu_count()
+    print(f"Generating {len(wafers)} wafer images → {out_dir}  (workers={workers})")
+
+    tasks = [(idx, wafer, out_dir, seed) for idx, wafer in enumerate(wafers)]
+    with Pool(workers) as pool:
+        results = pool.map(_render_one, tasks)
 
     coco = {
         "info":        {"description": "FabEye synthetic wafer images"},
-        "categories":  [{"id": i, "name": n} for i, n in enumerate(DEFECT_NAMES)],
+        "categories":  [{"id": i, "name": name} for i, name in enumerate(DEFECT_NAMES)],
         "images":      [],
         "annotations": [],
     }
-    ann_id = 0
-
-    print(f"Generating {len(wafers)} wafer images → {out_dir}")
-    for idx, wafer in enumerate(wafers):
-        wafer_id  = wafer["wafer_id"]
-        defect    = wafer["defect"]
-        dtype     = defect["defect_type"]
-        lx, ly    = defect["location_x"], defect["location_y"]
-        severity  = defect["severity"]
-
-        # Per-wafer RNG so each image is deterministic given the global seed
-        rng = np.random.default_rng(rng_global.integers(0, 2**32))
-
-        img = _make_wafer_base(rng)
-
-        if dtype > 0:
-            px, py = _loc_to_px(lx, ly)
-            _RENDERERS[dtype](img, px, py, severity, rng)
-
-        # Convert to uint8 [0,255], clip any overflow from additive rendering
-        img_u8 = (np.clip(img, 0.0, 1.0) * 255).astype(np.uint8)
-        # Save as 3-channel (Faster R-CNN expects RGB)
-        img_rgb = cv2.cvtColor(img_u8, cv2.COLOR_GRAY2BGR)
-
-        fname = f"{wafer_id}.png"
-        cv2.imwrite(os.path.join(out_dir, fname), img_rgb)
-
-        coco["images"].append({
-            "id":        idx,
-            "file_name": fname,
-            "width":     IMAGE_SIZE,
-            "height":    IMAGE_SIZE,
-            "wafer_id":  wafer_id,
-        })
-
-        if dtype > 0:
-            bbox = _defect_bbox(dtype, px, py, severity)
-            coco["annotations"].append({
-                "id":           ann_id,
-                "image_id":     idx,
-                "category_id":  dtype,
-                "bbox":         bbox,         # [x, y, w, h] COCO format
-                "area":         bbox[2] * bbox[3],
-                "iscrowd":      0,
-                "severity":     severity,
-            })
-            ann_id += 1
-
-        if (idx + 1) % 1000 == 0:
-            print(f"  {idx + 1}/{len(wafers)} done")
+    for img_entry, ann_entry in results:
+        coco["images"].append(img_entry)
+        if ann_entry:
+            coco["annotations"].append(ann_entry)
 
     ann_path = os.path.join(out_dir, "annotations.json")
     with open(ann_path, "w") as f:
         json.dump(coco, f, indent=2)
 
     total_defective = sum(1 for w in wafers if w["defect"]["defect_type"] > 0)
-    print(f"\nDone — {len(wafers)} images, {total_defective} with defect annotations")
+    print(f"Done — {len(wafers)} images, {total_defective} with defect annotations")
     print(f"Annotations → {ann_path}")
     return ann_path
 
