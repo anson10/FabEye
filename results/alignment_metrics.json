@@ -1,0 +1,13 @@
+{
+  "n_test": 1500,
+  "alignment_rate": 0.6716417910447762,
+  "full_alignment_rate": 0.6185737976782753,
+  "fp_rate": 0.1561938958707361,
+  "fn_rate": 0.08914728682170543,
+  "true_negative": 897,
+  "aligned": 373,
+  "type_mismatch": 65,
+  "loc_mismatch": 32,
+  "gnn_only": 87,
+  "cnn_only": 46
+}
