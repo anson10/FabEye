@@ -207,6 +207,24 @@ Every training run and integration result is logged to a structured database so 
 
 ---
 
+## Testing
+
+Unit tests cover data generation, model forward passes, loss functions, and the training loop.
+
+```bash
+PYTHONPATH=. python -m pytest tests/ -v
+```
+
+| File | Coverage |
+|------|----------|
+| `tests/test_data.py` | WaferDataGenerator — structure, normalisation, reproducibility |
+| `tests/test_models.py` | GNN output shapes, gradient flow, DefectLoss behaviour |
+| `tests/test_training.py` | GNNTrainer epoch loop, checkpointing, EarlyStopping |
+
+> **Note:** All tests require `torch_geometric`. Install the full environment (`requirements.txt`) before running — the tests will fail to collect if PyG is missing.
+
+---
+
 ## Database
 
 Results are logged automatically via `DatabaseManager`:
