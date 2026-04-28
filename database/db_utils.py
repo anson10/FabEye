@@ -83,6 +83,27 @@ class Checkpoint(Base):
     experiment = relationship("Experiment", back_populates="checkpoints")
 
 
+class AlignmentResult(Base):
+    __tablename__ = "alignment_results"
+
+    id                 = Column(Integer, primary_key=True, autoincrement=True)
+    run_name           = Column(String(128), nullable=False)
+    created_at         = Column(DateTime, default=datetime.utcnow)
+    n_test             = Column(Integer)
+    alignment_rate     = Column(Float)   # type-based (primary)
+    full_alignment_rate = Column(Float)  # type + location
+    fp_rate            = Column(Float)
+    fn_rate            = Column(Float)
+    true_negative      = Column(Integer)
+    aligned            = Column(Integer)
+    type_mismatch      = Column(Integer)
+    loc_mismatch       = Column(Integer)
+    gnn_only           = Column(Integer)
+    cnn_only           = Column(Integer)
+    location_threshold = Column(Float)
+    notes              = Column(Text)
+
+
 class DatabaseManager:
     def __init__(self, db_url: Optional[str] = None):
         if db_url is None:
@@ -148,6 +169,14 @@ class DatabaseManager:
             )
             return [{c.name: getattr(r, c.name) for c in EpochMetric.__table__.columns}
                     for r in rows]
+
+    def log_alignment(self, run_name: str, **metrics) -> int:
+        """Insert a row into alignment_results and return its id."""
+        with Session(self.engine) as session:
+            row = AlignmentResult(run_name=run_name, **metrics)
+            session.add(row)
+            session.commit()
+            return row.id
 
     def list_experiments(self, model_type: Optional[str] = None) -> list[dict]:
         with Session(self.engine) as session:
