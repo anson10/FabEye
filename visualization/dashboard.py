@@ -780,17 +780,20 @@ correlations between parameters and defect types are possible.
 # TAB 6 — Wafer Inspector
 # ══════════════════════════════════════════════════════════════════════════════
 with tab6:
-    st.markdown("""
-    Pick any wafer from the test dataset. Both models run live: the GNN reads process parameters
-    and predicts where a defect should appear; the CNN reads the inspection image and draws
-    detection boxes. The overlay shows whether they agree.
-    """)
-
-    if not IMAGE_DIR.exists():
-        st.warning("Wafer images are gitignored. Generate with `python3 data/image_generator.py`.")
-    elif not GNN_CKPT.exists() or not CNN_CKPT.exists():
-        st.warning("Model checkpoints are gitignored. Train the models first.")
+    if not IMAGE_DIR.exists() or not GNN_CKPT.exists() or not CNN_CKPT.exists():
+        st.info(
+            "**Live Wafer Inspector — local only**\n\n"
+            "This tab runs both models live and requires files that are too large for cloud hosting:\n\n"
+            "- Wafer images → `python3 data/image_generator.py`\n"
+            "- Model checkpoints → `python3 training/train_gnn.py && python3 training/train_cnn.py`\n\n"
+            "Clone the repo and run the pipeline locally to use this feature."
+        )
     else:
+        st.markdown("""
+        Pick any wafer from the test dataset. Both models run live: the GNN reads process parameters
+        and predicts where a defect should appear; the CNN reads the inspection image and draws
+        detection boxes. The overlay shows whether they agree.
+        """)
         import torch
         import torchvision.transforms.functional as TF
 
