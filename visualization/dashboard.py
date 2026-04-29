@@ -148,7 +148,8 @@ ROOT      = Path(__file__).parent.parent
 RESULTS   = ROOT / "results"
 DATA_RAW  = ROOT / "data" / "raw" / "synthetic_wafers.json"
 IMAGE_DIR = ROOT / "data" / "wafer_images"
-ANN_PATH  = IMAGE_DIR / "annotations.json"
+ANN_PATH  = (IMAGE_DIR / "annotations.json" if (IMAGE_DIR / "annotations.json").exists()
+             else IMAGE_DIR / "sample_annotations.json")
 GNN_CKPT  = ROOT / "checkpoints" / "best_gnn.pt"
 CNN_CKPT  = ROOT / "checkpoints" / "best_cnn.pt"
 
@@ -339,12 +340,12 @@ with tab1:
 
         st.divider()
         section("Sample Wafer Images")
-        if IMAGE_DIR.exists():
-            ann      = load_annotations()
-            ann_idx  = {a["image_id"]: a for a in ann["annotations"]}
-            id_map   = {img["file_name"]: img["id"] for img in ann["images"]}
-            imgs     = sorted(IMAGE_DIR.glob("W_*.png"))[:8]
-            cols     = st.columns(8)
+        imgs = sorted(IMAGE_DIR.glob("W_*.png"))[:8] if IMAGE_DIR.exists() else []
+        if imgs:
+            ann     = load_annotations()
+            ann_idx = {a["image_id"]: a for a in ann["annotations"]}
+            id_map  = {img["file_name"]: img["id"] for img in ann["images"]}
+            cols    = st.columns(len(imgs))
             for col, img_path in zip(cols, imgs):
                 pil    = Image.open(img_path).resize((120, 120))
                 img_id = id_map.get(img_path.name, -1)
@@ -352,7 +353,7 @@ with tab1:
                 label  = DEFECT_NAMES[entry["category_id"]] if entry else "none"
                 col.image(pil, caption=label.replace("_", " "), width=120)
         else:
-            st.info("Wafer images are gitignored. Generate with `python3 data/image_generator.py`.")
+            st.info("Generate locally with `python3 data/image_generator.py` to see sample images.")
 
         st.divider()
         section("Process Step Feature Statistics (normalised)")
