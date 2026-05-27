@@ -388,11 +388,10 @@ with tab2:
     gnn_m = load_gnn_metrics()
     test  = gnn_m["test"]
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3 = st.columns(3)
     c1.metric("Type Accuracy",  f"{test['type_accuracy']*100:.2f}%",  "target >85%")
-    c2.metric("Location MSE",   f"{test['location_mse']:.4f}",        "target <0.05")
-    c3.metric("Severity RMSE",  f"{test['severity_rmse']:.4f}",       "target <0.6")
-    c4.metric("Inference",      f"{test['avg_inference_ms']:.1f} ms", "target <30 ms")
+    c2.metric("Severity RMSE",  f"{test['severity_rmse']:.4f}",       "target <0.6")
+    c3.metric("Inference",      f"{test['avg_inference_ms']:.1f} ms", "target <30 ms")
 
     st.divider()
     hist   = gnn_m["history"]
