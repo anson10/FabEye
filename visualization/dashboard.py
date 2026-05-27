@@ -434,16 +434,19 @@ with tab2:
 
     tech_detail("""
 <b>Architecture:</b> 3-layer GCN (Graph Convolutional Network) with hidden width 256, BatchNorm,
-and dropout 0.2. Three prediction heads branch from a pooled graph embedding: a 3-layer MLP for
-defect type (6-class softmax), a 2-layer MLP for location (2D sigmoid), and a 2-layer MLP for
-severity (scalar sigmoid).<br><br>
+and dropout 0.3. Two prediction heads branch from a pooled graph embedding: a 3-layer MLP for
+defect type (6-class softmax) and a 2-layer MLP for severity (scalar sigmoid). Location is not
+predicted by the GNN — process parameters have no causal link to spatial defect location in this
+dataset, so location is derived from the CNN bounding box centre instead.<br><br>
 <b>Graph structure:</b> Each wafer is a chain graph with 8 nodes (one per process step). Edges
 connect consecutive steps reflecting causal temporal dependencies. Each node carries 3 raw
-normalised parameters + 8-dimensional one-hot step identity = 11 features.<br><br>
-<b>Training:</b> Adam, lr=0.001, ReduceLROnPlateau (factor 0.5, patience 20), 120 epochs,
-WeightedRandomSampler for class balance. The flat bypass (raw 24 features concatenated to pooled
-embedding) lets the model use individual parameter values directly alongside the graph-propagated
-representation — this was the key architectural change that lifted accuracy above 85%.
+normalised parameters + 8-dimensional one-hot step identity = 11 features. The one-hot encoding
+gives each node a unique identity so the GNN can distinguish which step caused the anomaly.<br><br>
+<b>Training:</b> Adam, lr=0.001, ReduceLROnPlateau (factor 0.5, patience 7), 100 epochs with
+early stopping (patience 25), class weights [1.0, 2.0, 2.0, 2.0, 2.0, 2.0] for defect classes.
+The flat bypass (raw 24 features concatenated to the pooled embedding) gives prediction heads
+direct access to individual parameter values that are otherwise smoothed out by GCN message
+passing — this was the key architectural change that lifted accuracy above 85%.
     """)
 
 
@@ -614,16 +617,18 @@ with tab4:
 
     tech_detail("""
 <b>Alignment definition:</b> A wafer is <b>type-aligned</b> when both models predict the same
-defect class. It is <b>fully aligned</b> when type agrees AND the GNN's predicted (x,y) location
-is within 0.35 normalised units of the CNN detection centroid.<br><br>
-<b>Why type-first:</b> The GNN's location RMSE is ~0.23 per coordinate (Euclidean ~0.33). A strict
-location threshold of 0.2 rejected most correct type predictions. Type agreement is the primary
-research signal — it validates that the parameter anomaly produces the right class of visual defect.
-Location is secondary; the GNN is not a precise localisation model.<br><br>
+defect class. The GNN no longer predicts location (location head was removed — process parameters
+have no causal link to spatial location in this dataset). Location is now derived from the CNN
+bounding box centre only. Type agreement is the primary research signal — it validates that the
+parameter anomaly produces the right class of visual defect.<br><br>
 <b>FP/FN definitions:</b> FP = GNN fires, CNN sees nothing (GNN false alarm). FN = CNN detects
-something, GNN predicted clean (GNN missed the process anomaly). The low FN rate (8.9%) means the
-GNN rarely misses defects that the CNN visually confirms — the causal chain from parameters to
-image is well captured.
+something, GNN predicted clean (GNN missed the process anomaly). The low FN rate means the GNN
+rarely misses defects that the CNN visually confirms — the causal chain from parameters to
+image is well captured.<br><br>
+<b>Why the location head was removed:</b> The original GNN had a location head that collapsed to
+predicting (0.50, 0.49) for all inputs. Root cause: 65% of training samples (clean wafers) were
+masked out of the location loss, leaving the head gradient-starved. The location_mse of 0.054
+matched the theoretical variance of Uniform(0.1, 0.9), confirming it was predicting the mean.
     """)
 
 

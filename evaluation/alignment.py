@@ -84,7 +84,7 @@ class GNNCNNComparison:
         results = []
         for batch in loader:
             batch = batch.to(self.device)
-            type_logits, loc_pred, sev_pred = self.gnn_model(
+            type_logits, sev_pred = self.gnn_model(
                 batch.x, batch.edge_index, batch.batch
             )
             type_preds = type_logits.argmax(dim=-1)
@@ -92,8 +92,7 @@ class GNNCNNComparison:
                 results.append({
                     "type_pred": int(type_preds[i].item()),
                     "type_gt":   int(batch.y_type[i].item()),
-                    "loc_pred":  loc_pred[i].cpu().numpy().tolist(),
-                    "loc_gt":    batch.y_loc[i].cpu().numpy().tolist(),
+                    "loc_pred":  [0.0, 0.0],   # GNN no longer predicts location
                     "sev_pred":  float(sev_pred[i].squeeze().item()),
                 })
         return results
@@ -104,16 +103,19 @@ class GNNCNNComparison:
             self.cnn_test, batch_size=batch_size, shuffle=False,
             collate_fn=collate_fn, num_workers=0,
         )
+        SCORE_THRESH = 0.4  # same threshold used in dashboard — discard low-confidence detections
         results = []
         self.cnn_model.eval()
         for images, targets in loader:
             images = [img.to(self.device) for img in images]
             preds = self.cnn_model(images)
             for pred, tgt in zip(preds, targets):
+                # Filter to only detections above confidence threshold
+                keep = pred["scores"] >= SCORE_THRESH
                 results.append({
-                    "boxes":     pred["boxes"].cpu().numpy().tolist(),
-                    "labels":    pred["labels"].cpu().numpy().tolist(),  # 1-based (0=background)
-                    "scores":    pred["scores"].cpu().numpy().tolist(),
+                    "boxes":     pred["boxes"][keep].cpu().numpy().tolist(),
+                    "labels":    pred["labels"][keep].cpu().numpy().tolist(),
+                    "scores":    pred["scores"][keep].cpu().numpy().tolist(),
                     "gt_boxes":  tgt["boxes"].numpy().tolist(),
                     "gt_labels": tgt["labels"].numpy().tolist(),
                 })
