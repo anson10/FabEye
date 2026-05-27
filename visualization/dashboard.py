@@ -792,8 +792,8 @@ with tab6:
     else:
         st.markdown("""
         Pick any wafer from the test dataset. Both models run live: the GNN reads process parameters
-        and predicts where a defect should appear; the CNN reads the inspection image and draws
-        detection boxes. The overlay shows whether they agree.
+        reads process parameters and flags what type of defect occurred and how severe it was;
+        the CNN reads the inspection image and draws detection boxes with the exact location.
         """)
         import torch
         import torchvision.transforms.functional as TF
@@ -826,10 +826,9 @@ with tab6:
                 batch_vec = torch.zeros(n_steps, dtype=torch.long)
 
                 with torch.no_grad():
-                    tl, lp, sp = gnn_model(
+                    tl, sp = gnn_model(
                         x.to(device), edge_index.to(device), batch_vec.to(device))
                 gnn_type = int(tl.argmax(dim=-1).item())
-                gnn_loc  = lp[0].cpu().numpy()
                 gnn_sev  = float(sp[0].squeeze().item())
 
                 img_path = IMAGE_DIR / img_lookup[selected]["file_name"]
@@ -843,14 +842,22 @@ with tab6:
 
             col_img, col_info = st.columns([2, 1])
 
+            # Derive CNN location from bounding box centre of top detection
+            cnn_loc = None
+            if len(boxes) > 0:
+                x1, y1, x2, y2 = boxes[0]
+                cnn_loc = ((x1 + x2) / 2 / IMG_SIZE, (y1 + y2) / 2 / IMG_SIZE)
+
             with col_img:
                 fig, ax = plt.subplots(figsize=(5.5, 5.5))
                 ax.imshow(np.array(pil_img))
-                gx = gnn_loc[0] * IMG_SIZE
-                gy = gnn_loc[1] * IMG_SIZE
+                # GNN appears in legend only (no spatial marker — it has no location output)
                 gc = DEFECT_COLORS[gnn_type % len(DEFECT_COLORS)]
-                ax.plot(gx, gy, "x", color=gc, markersize=18, markeredgewidth=3,
-                        label=f"GNN: {DEFECT_NAMES[gnn_type]} (sev {gnn_sev:.2f})")
+                gnn_label = (f"GNN: {DEFECT_NAMES[gnn_type]} (sev {gnn_sev:.2f})"
+                             if gnn_type > 0 else f"GNN: {DEFECT_NAMES[gnn_type]}")
+                ax.plot([], [], "x", color=gc, markersize=12, markeredgewidth=2,
+                        label=gnn_label)
+                # CNN draws bounding boxes with centre marker
                 for box, lbl, score in zip(boxes, labels, scores):
                     x1, y1, x2, y2 = box
                     lbl0 = int(lbl) - 1
@@ -859,8 +866,10 @@ with tab6:
                         (x1, y1), x2-x1, y2-y1,
                         linewidth=2, edgecolor=c, facecolor="none")
                     ax.add_patch(rect)
+                    cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+                    ax.plot(cx, cy, "+", color=c, markersize=10, markeredgewidth=1.5)
                     ax.text(x1, max(y1-4, 6),
-                            f"{DEFECT_NAMES[lbl0]} {score:.2f}",
+                            f"CNN: {DEFECT_NAMES[lbl0]} {score:.2f}",
                             color=c, fontsize=8,
                             bbox=dict(facecolor="#1a1f2e", alpha=0.7,
                                       pad=1, edgecolor="none"))
@@ -878,29 +887,39 @@ with tab6:
                 st.write(f"Severity: `{gt['severity']:.3f}`")
 
                 section("GNN Prediction")
-                match_type = "✅" if gnn_type == gt["defect_type"] else "❌"
-                st.write(f"Type: `{DEFECT_NAMES[gnn_type]}` {match_type}")
-                st.write(f"Location: `({gnn_loc[0]:.3f}, {gnn_loc[1]:.3f})`")
-                st.write(f"Severity: `{gnn_sev:.3f}`")
+                match_type = "pass" if gnn_type == gt["defect_type"] else "fail"
+                st.write(f"Type: `{DEFECT_NAMES[gnn_type]}` ({match_type})")
+                if gnn_type == 0:
+                    st.write("Severity: `N/A` *(no defect predicted)*")
+                else:
+                    st.write(f"Severity: `{gnn_sev:.3f}`")
+                st.caption("Location: predicted by CNN from image")
 
                 section("CNN Detections")
                 if len(boxes) == 0:
                     st.write("No detections above score threshold (0.4)")
                 else:
-                    for lbl, score in zip(labels, scores):
+                    for box, lbl, score in zip(boxes, labels, scores):
                         lbl0 = int(lbl) - 1
-                        match = "✅" if lbl0 == gt["defect_type"] else "❌"
-                        st.write(f"`{DEFECT_NAMES[lbl0]}` — {score:.3f} {match}")
+                        match = "pass" if lbl0 == gt["defect_type"] else "fail"
+                        x1, y1, x2, y2 = box
+                        cx = (x1 + x2) / 2 / IMG_SIZE
+                        cy = (y1 + y2) / 2 / IMG_SIZE
+                        st.write(f"Type: `{DEFECT_NAMES[lbl0]}` — {score:.3f} ({match})")
+                        st.write(f"Location: `({cx:.3f}, {cy:.3f})`")
         else:
             st.info("Select a wafer ID above and click **Run both models**.")
 
         tech_detail("""
 <b>GNN inference:</b> The wafer's 8-node chain graph is reconstructed from <code>node_features</code>
 and <code>adjacency</code> in the JSON. One-hot step encodings are appended (same as training).
-A single-graph batch vector of all zeros is used since we process one wafer at a time.<br><br>
+The GNN outputs defect type (6-class softmax) and severity (scalar sigmoid). Location is
+intentionally absent — process parameters have no causal link to where on the wafer a defect
+appears, only whether it appears and how severe it is.<br><br>
 <b>CNN inference:</b> The PNG image is loaded via PIL, converted to a normalised
 <code>FloatTensor[3, 512, 512]</code>, and passed directly to Faster R-CNN in eval mode.
-The model outputs boxes, labels, and scores after NMS and score thresholding (0.4).<br><br>
+The model outputs bounding boxes, class labels, and confidence scores after NMS and score
+thresholding (0.4). Bounding box centres are reported as the defect location.<br><br>
 <b>DDP checkpoint loading:</b> The CNN was trained with <code>DistributedDataParallel</code>,
 which adds a <code>model.module.*</code> prefix to all state dict keys. The loader strips this
 prefix before calling <code>load_state_dict</code>, making the checkpoint compatible with

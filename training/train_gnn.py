@@ -75,7 +75,7 @@ def main():
     total_params = sum(p.numel() for p in model.parameters())
     print(f"Model parameters: {total_params:,}")
 
-    criterion = DefectLoss(type_weight=1.0, location_weight=0.5, severity_weight=0.5,
+    criterion = DefectLoss(type_weight=1.0, severity_weight=0.5,
                            class_weights=class_weights)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-3)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -103,18 +103,16 @@ def main():
     trainer.model.eval()
     for batch in test_loader:
         outputs, inf_ms = timed_inference(trainer.model, batch, device=str(device))
-        type_logits, location, severity = outputs
-        y_loc = batch.y_loc.view(-1, 2).to(device)
+        type_logits, severity = outputs
         test_metrics.update(
-            type_logits, location, severity,
-            batch.y_type.to(device), y_loc, batch.y_severity.to(device),
+            type_logits, severity,
+            batch.y_type.to(device), batch.y_severity.to(device),
             inference_time_ms=inf_ms,
         )
 
     final = test_metrics.compute()
     print("\n=== Test Set Results ===")
     print(f"  Type Accuracy : {final['type_accuracy']:.4f}  (target >0.85)")
-    print(f"  Location MSE  : {final['location_mse']:.4f}  (target <0.05)")
     print(f"  Severity RMSE : {final['severity_rmse']:.4f}  (target <0.60)")
     print(f"  Inference     : {final['avg_inference_ms']:.2f} ms  (target <30ms)")
     print("\nClassification Report:")
