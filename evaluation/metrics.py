@@ -19,8 +19,8 @@ class DefectMetrics:
         metrics = DefectMetrics()
         for batch in loader:
             ...
-            metrics.update(type_logits, location_pred, severity_pred,
-                           batch.y_type, batch.y_loc, batch.y_severity)
+            metrics.update(type_logits, severity_pred,
+                           batch.y_type, batch.y_severity)
         results = metrics.compute()
     """
 
@@ -30,8 +30,6 @@ class DefectMetrics:
     def reset(self):
         self._type_preds    = []
         self._type_targets  = []
-        self._loc_preds     = []
-        self._loc_targets   = []
         self._sev_preds     = []
         self._sev_targets   = []
         self._inference_times_ms = []
@@ -39,19 +37,14 @@ class DefectMetrics:
     def update(
         self,
         type_logits:   torch.Tensor,
-        location_pred: torch.Tensor,
         severity_pred: torch.Tensor,
         y_type:        torch.Tensor,
-        y_loc:         torch.Tensor,
         y_severity:    torch.Tensor,
         inference_time_ms: float = 0.0,
     ):
         type_pred = type_logits.argmax(dim=-1)
         self._type_preds.extend(type_pred.cpu().numpy().tolist())
         self._type_targets.extend(y_type.cpu().numpy().tolist())
-
-        self._loc_preds.extend(location_pred.detach().cpu().numpy().tolist())
-        self._loc_targets.extend(y_loc.cpu().numpy().tolist())
 
         self._sev_preds.extend(severity_pred.detach().cpu().squeeze(-1).numpy().tolist())
         self._sev_targets.extend(y_severity.cpu().numpy().tolist())
@@ -62,21 +55,15 @@ class DefectMetrics:
     def compute(self) -> dict:
         preds   = np.array(self._type_preds)
         targets = np.array(self._type_targets)
-        loc_p   = np.array(self._loc_preds)
-        loc_t   = np.array(self._loc_targets)
         sev_p   = np.array(self._sev_preds)
         sev_t   = np.array(self._sev_targets)
 
         type_accuracy = float((preds == targets).mean())
 
-        # Location MSE only on truly defective wafers
         defect_mask = targets > 0
-        if defect_mask.sum() > 0:
-            location_mse = float(np.mean((loc_p[defect_mask] - loc_t[defect_mask]) ** 2))
-            severity_rmse = float(np.sqrt(np.mean((sev_p[defect_mask] - sev_t[defect_mask]) ** 2)))
-        else:
-            location_mse  = 0.0
-            severity_rmse = 0.0
+        severity_rmse = float(
+            np.sqrt(np.mean((sev_p[defect_mask] - sev_t[defect_mask]) ** 2))
+        ) if defect_mask.sum() > 0 else 0.0
 
         avg_inference_ms = (
             float(np.mean(self._inference_times_ms)) if self._inference_times_ms else 0.0
@@ -84,7 +71,6 @@ class DefectMetrics:
 
         return {
             "type_accuracy":    type_accuracy,
-            "location_mse":     location_mse,
             "severity_rmse":    severity_rmse,
             "avg_inference_ms": avg_inference_ms,
             "n_samples":        int(len(preds)),

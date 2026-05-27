@@ -26,7 +26,7 @@ def get_device() -> torch.device:
 def plot_training_curves(history: dict, save_path: str = "results/gnn_training_curves.png"):
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
     fig.suptitle("GNN Training Curves", fontsize=14)
 
     # Total loss
@@ -46,15 +46,6 @@ def plot_training_curves(history: dict, save_path: str = "results/gnn_training_c
     axes[1].set_ylim(0, 1)
     axes[1].legend()
     axes[1].grid(True)
-
-    # Location MSE
-    axes[2].plot(history["train_loc_mse"], label="Train")
-    axes[2].plot(history["val_loc_mse"],   label="Val")
-    axes[2].axhline(0.05, color="red", linestyle="--", label="Target 0.05")
-    axes[2].set_title("Location MSE")
-    axes[2].set_xlabel("Epoch")
-    axes[2].legend()
-    axes[2].grid(True)
 
     plt.tight_layout()
     plt.savefig(save_path, dpi=150)
