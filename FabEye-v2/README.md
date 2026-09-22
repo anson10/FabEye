@@ -6,6 +6,16 @@ The project asks what a fab would ask before trusting a classifier: does the sco
 
 ![Example wafer maps by failure pattern](results/wm811k_examples.png)
 
+## Why this is different
+
+Wafer-map classifiers on WM-811K are common. Most report accuracy on a random per-wafer split and stop there. Three things here are less common, and each is backed by a result below rather than asserted:
+
+- **A leakage audit, not a claim.** Labels in this dataset cluster 92.7% within a lot against 23.7% by chance, so a random split lets a model see near-duplicates of its test wafers during training. Every model here is scored on both a random split and a lot-disjoint split, so the inflation is measured rather than assumed. For the CNN it turned out small, which is itself a checked fact, not a guess.
+- **A tested hypothesis that failed, reported anyway.** A model that reads a wafer's lot neighbours was built to see if manufacturing context improves classification, with a no-neighbour control and a random-other-lot control, at four label budgets. It did not help at any of them. Most portfolios only show wins; a controlled negative result is rarer and makes the surrounding numbers more credible, not less.
+- **Calibrated guarantees that hold on lots never seen, with their limits stated.** Conformal prediction sets are calibrated on one set of lots and tested on different ones. Plain calibration leaves one class covered only 55% of the time even at a 90% target, and calibrating on whole lots is measurably noisier than calibrating on the same number of random wafers.
+
+What is not a differentiator: the CNN, GNN and random-forest comparison, the ONNX export, and the FastAPI service. Those are expected of a serious project, not unusual.
+
 ## Data
 
 [WM-811K](https://www.kaggle.com/datasets/qingyi/wm811k-wafer-map) holds 811,457 wafer maps from 46,293 production lots. Only 172,950 carry an expert label across 9 patterns, and 85% of those are "none". Wu, Jang and Chen introduced it in IEEE Transactions on Semiconductor Manufacturing, 2015.
