@@ -132,20 +132,25 @@ docker run -p 8000:8000 wafer-classifier
 ```
 
 ```bash
-curl -s localhost:8000/predict?alpha=0.05 -H 'Content-Type: application/json' \
+curl -s localhost:8000/predict?alpha=0.05 -H 'Content-Type: application/json' -H 'X-API-Key: <key>' \
   -d '{"wafer_map": [[0,1,1,0],[1,1,2,1],[1,2,1,1],[0,1,1,0]]}'
 ```
 
 A wafer map is a 2D grid with 0 outside the wafer, 1 for a good die and 2 for a failed die. Any size works.
 
-| Endpoint | Purpose |
-|---|---|
-| `POST /predict` | Pattern, confidence, conformal prediction set, and an auto-accept or review flag |
-| `POST /predict/batch` | Up to 64 wafers per request |
-| `GET /calibration` | What the signals guarantee, how they behaved on unseen lots, and their limits |
-| `GET /health` | Status, and whether the calibration file matches the loaded model |
+| Endpoint | Auth | Purpose |
+|---|---|---|
+| `POST /predict` | required if `WAFER_API_KEY` is set | Pattern, confidence, conformal prediction set, and an auto-accept or review flag |
+| `POST /predict/batch` | required if `WAFER_API_KEY` is set | Up to 64 wafers per request |
+| `GET /calibration` | none | What the signals guarantee, how they behaved on unseen lots, and their limits |
+| `GET /health` | none | Status, and whether the calibration file matches the loaded model |
+| `GET /metrics` | none | Prometheus text: request counts and latency, plus prediction volume by pattern and the accept/review split |
 
 The image is 681 MB, runs as a non-root user, and includes a health check. Run the service tests with `pytest tests/test_serving.py`.
+
+**Auth, logging and metrics.** Set `WAFER_API_KEY` to require a matching `X-API-Key` header on the predict routes; leaving it unset disables auth and logs a startup warning, for local development only. Every request is logged as one JSON line with a request ID, also returned as the `X-Request-ID` response header. `WAFER_CORS_ORIGINS` (comma-separated, default `*`) controls which origins may call the API from a browser.
+
+**Frontend.** `web/index.html` is a standalone static page — no build step, no framework — that calls `/predict` with `fetch()`. It holds no model weights and does no inference itself; open it directly or serve it with any static host (`python3 -m http.server` inside `web/` for local use) and point it at the running API's URL and key.
 
 ## Layout
 
