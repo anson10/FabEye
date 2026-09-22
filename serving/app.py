@@ -102,6 +102,11 @@ def describe(p, alpha_key):
     }
 
 
+@app.get("/")
+def root():
+    return {"message": "Wafer Map Classifier. See /docs for usage."}
+
+
 @app.get("/health")
 def health():
     return {
