@@ -1,3 +1,5 @@
+> **Archived v1.** This is the original synthetic-data pipeline. The active project is [FabEye v2](../README.md), on real WM-811K wafer maps.
+
 # FabEye
 
 **End-to-end ML pipeline for semiconductor wafer defect prediction and detection.**

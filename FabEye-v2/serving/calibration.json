@@ -1,0 +1,62 @@
+{
+ "model_sha256": "49d5a88cf5c2c8cb97064930444837729b3e335ef0f8e81790ca46a54e282851",
+ "calibration": {
+  "wafers": 25903,
+  "lots": 1612,
+  "source": "labelled wafers from validation lots, disjoint from training and test lots"
+ },
+ "classes": [
+  "none",
+  "Center",
+  "Donut",
+  "Edge-Loc",
+  "Edge-Ring",
+  "Loc",
+  "Near-full",
+  "Random",
+  "Scratch"
+ ],
+ "conformal": {
+  "0.1": {
+   "marginal_threshold": 0.09601718187332153,
+   "classwise_thresholds": [
+    0.07366043329238892,
+    0.1800771951675415,
+    0.5335776805877686,
+    0.5595099925994873,
+    0.01022958755493164,
+    0.8125957250595093,
+    0.06901592016220093,
+    0.3864034414291382,
+    0.6882859468460083
+   ],
+   "unseen_lot_coverage": 0.8925217391304348,
+   "unseen_lot_worst_class_coverage": 0.8620689655172413,
+   "unseen_lot_review_rate": 0.0791111111111111
+  },
+  "0.05": {
+   "marginal_threshold": 0.33394110202789307,
+   "classwise_thresholds": [
+    0.26047539710998535,
+    0.5587754249572754,
+    0.8713979721069336,
+    0.7675037384033203,
+    0.11464905738830566,
+    0.9111361503601074,
+    0.07554352283477783,
+    0.7529336810112,
+    0.9387205243110657
+   ],
+   "unseen_lot_coverage": 0.9467053140096618,
+   "unseen_lot_worst_class_coverage": 0.875,
+   "unseen_lot_review_rate": 0.04042512077294686
+  }
+ },
+ "selective": {
+  "confidence_threshold": 0.6879024712284608,
+  "target_error": 0.02,
+  "delta": 0.1,
+  "unseen_lot_accept_rate": 0.9616618357487923,
+  "unseen_lot_error_among_accepted": 0.018566893059518547
+ }
+}

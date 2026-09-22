@@ -7,13 +7,13 @@ per wafer. Each image simulates a top-down SEM view of a silicon wafer:
   - Defect rendered at (location_x, location_y) with appearance tuned per type
   - COCO-format annotation JSON saved alongside images
 
-Defect visual signatures:
-  particle_contamination : bright circular blob
-  scratch                : thin bright diagonal line segment
-  pit                    : dark circular depression
-  oxide_defect           : cloudy bright patch with soft edges
-  metal_contamination    : irregular bright cluster
-  none                   : clean surface only
+    Defect visual signatures:
+    particle_contamination : bright circular blob
+    scratch                : thin bright diagonal line segment
+    pit                    : dark circular depression
+    oxide_defect           : cloudy bright patch with soft edges
+    metal_contamination    : irregular bright cluster
+    none                   : clean surface only
 
 Usage:
     python3 data/image_generator.py
