@@ -1,0 +1,50 @@
+{
+ "meta": {
+  "threads": 4,
+  "gpu": "NVIDIA GeForce RTX 3050 6GB Laptop GPU",
+  "onnxruntime": "1.23.2",
+  "torch": "2.9.1+cu128",
+  "providers": [
+   "AzureExecutionProvider",
+   "CPUExecutionProvider"
+  ]
+ },
+ "rows": {
+  "pytorch_cpu_b1": {
+   "p50_ms": 7.0698269992135465,
+   "p95_ms": 8.657451048929943,
+   "p99_ms": 9.815800081778432,
+   "throughput_wafers_per_s": 141.26165881349712
+  },
+  "onnxruntime_cpu_b1": {
+   "p50_ms": 3.1093449997570133,
+   "p95_ms": 3.568301798986795,
+   "p99_ms": 6.282777749293007,
+   "throughput_wafers_per_s": 347.3237062786104
+  },
+  "pytorch_cuda_b1": {
+   "p50_ms": 3.2686549984646263,
+   "p95_ms": 6.490645701160247,
+   "p99_ms": 8.181285050741275,
+   "throughput_wafers_per_s": 273.77359684092386
+  },
+  "pytorch_cpu_b32": {
+   "p50_ms": 190.14349399913044,
+   "p95_ms": 207.18219579903234,
+   "p99_ms": 219.05119327991997,
+   "throughput_wafers_per_s": 168.72835395648363
+  },
+  "onnxruntime_cpu_b32": {
+   "p50_ms": 79.55710500027635,
+   "p95_ms": 90.1759892987684,
+   "p99_ms": 94.99030669110648,
+   "throughput_wafers_per_s": 411.6019819364646
+  },
+  "pytorch_cuda_b32": {
+   "p50_ms": 7.173323499955586,
+   "p95_ms": 8.216647902554541,
+   "p99_ms": 9.539329071667453,
+   "throughput_wafers_per_s": 4363.0150821388825
+  }
+ }
+}
