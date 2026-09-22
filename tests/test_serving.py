@@ -105,3 +105,58 @@ def test_calibration_endpoint_states_limits(client):
 def test_health_flags_mismatched_calibration(client):
     # the test model is untrained random weights, so it cannot match the shipped calibration
     assert client.get("/health").json()["calibration_matches_model"] is False
+
+
+def test_request_id_header_present(client):
+    r = client.get("/health")
+    assert "X-Request-ID" in r.headers and len(r.headers["X-Request-ID"]) > 0
+
+
+def test_metrics_endpoint_exposes_prometheus_text(client):
+    client.post("/predict", json={"wafer_map": disc()})
+    r = client.get("/metrics")
+    assert r.status_code == 200
+    assert "http_requests_total" in r.text
+    assert "predictions_total" in r.text
+
+
+@pytest.fixture
+def authenticated_client(tmp_path_factory, monkeypatch):
+    # function-scoped and via monkeypatch, so WAFER_API_KEY can never leak into
+    # other tests regardless of execution order
+    d = tmp_path_factory.mktemp("onnx_auth")
+    ckpt, onnx_path = str(d / "m.pt"), str(d / "m.onnx")
+    torch.save(WaferCNN().state_dict(), ckpt)
+    export(ckpt, onnx_path)
+    monkeypatch.setenv("WAFER_ONNX", onnx_path)
+    monkeypatch.setenv("WAFER_API_KEY", "test-key-123")
+    from fastapi.testclient import TestClient
+
+    import serving.app as app_module
+
+    importlib.reload(app_module)
+    with TestClient(app_module.app) as c:
+        yield c
+    # monkeypatch auto-restores WAFER_ONNX/WAFER_API_KEY when this test ends; the
+    # module-scoped `client` fixture already holds its own separate app object
+    # from an earlier reload, so it is unaffected by this one.
+
+
+def test_predict_requires_api_key_when_configured(authenticated_client):
+    no_key = authenticated_client.post("/predict", json={"wafer_map": disc()})
+    assert no_key.status_code == 401
+
+    wrong_key = authenticated_client.post(
+        "/predict", json={"wafer_map": disc()}, headers={"X-API-Key": "wrong"}
+    )
+    assert wrong_key.status_code == 401
+
+    right_key = authenticated_client.post(
+        "/predict", json={"wafer_map": disc()}, headers={"X-API-Key": "test-key-123"}
+    )
+    assert right_key.status_code == 200
+
+
+def test_public_routes_stay_open_without_api_key(authenticated_client):
+    assert authenticated_client.get("/health").status_code == 200
+    assert authenticated_client.get("/metrics").status_code == 200
