@@ -1,0 +1,7 @@
+*
+!requirements-serving.txt
+!serving/__init__.py
+!serving/app.py
+!serving/preprocess.py
+!serving/calibration.json
+!serving/wafer_cnn.onnx
