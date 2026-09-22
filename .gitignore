@@ -51,3 +51,6 @@ GIT_INTEGRATED.md
 git_workflow.md
 report.md
 Week*_report.md
+
+# WM-811K dataset (large, download via Kaggle)
+data/wm811k/
