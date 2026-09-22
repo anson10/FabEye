@@ -158,7 +158,7 @@ The image is 681 MB, runs as a non-root user, and includes a health check. Run t
 
 ## Earlier work
 
-This branch replaces an earlier synthetic pipeline that paired a process-parameter GNN with a Faster R-CNN. That work, including its dashboard and reports, remains in the repository. Its README is at [docs/README_legacy.md](docs/README_legacy.md). A plain classifier scored 100% on its synthetic images, which is why the project moved to real data.
+This project replaces an earlier synthetic pipeline that paired a process-parameter GNN with a Faster R-CNN. That work, including its dashboard, database schema and dataset generators, lives in [legacy-v1/](legacy-v1/), with its own README at [legacy-v1/README.md](legacy-v1/README.md). A plain classifier scored 100% on its synthetic images, which is why the project moved to real data.
 
 ## License
 
