@@ -13,3 +13,11 @@ Pillow>=10.0.0
 tqdm>=4.66.1
 pytest>=7.4.3
 psycopg2-binary>=2.9.9
+
+# Serving
+fastapi>=0.110
+uvicorn>=0.29
+onnx>=1.16
+onnxruntime>=1.18
+onnxscript>=0.1
+httpx>=0.27
