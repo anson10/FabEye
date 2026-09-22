@@ -1,4 +1,23 @@
-# The active project lives in FabEye-v2/ — see FabEye-v2/.gitignore for its rules.
+# WM-811K raw dataset and derived caches (large, download via Kaggle)
+data/wm811k/
+
+# Model outputs — keep JSON metrics and PNG plots, drop large arrays
+results/*
+!results/*.json
+!results/*.png
+!results/*.md
+checkpoints/
+
+# Legacy v1 project: generated synthetic data and its checkpoints
+legacy-v1/data/raw/*
+!legacy-v1/data/raw/synthetic_wafers.json
+legacy-v1/data/wafer_images/*
+!legacy-v1/data/wafer_images/W_00000[0-7].png
+!legacy-v1/data/wafer_images/sample_annotations.json
+legacy-v1/checkpoints/
+legacy-v1/results/*
+!legacy-v1/results/*.json
+!legacy-v1/results/*.png
 
 # Personal / local-only material — never pushed
 CLAUDE.md
@@ -11,13 +30,28 @@ reports/
 *.pptx
 *.pdf
 watch_training.sh
+image.png
 
-# SQLite, logs, caches
+# SQLite, logs
 *.db
 *.log
+
+# Python
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+venv/
+env/
+.venv/
 .pytest_cache/
+
+# Jupyter
 .ipynb_checkpoints/
 *.ipynb
 
@@ -28,4 +62,3 @@ __pycache__/
 *.swo
 .DS_Store
 Thumbs.db
-image.png
