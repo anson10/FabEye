@@ -1,7 +1,9 @@
 """FastAPI service for wafer map pattern classification, served with ONNX Runtime.
 
 Run: uvicorn serving.app:app --port 8000
-Env: WAFER_ONNX (model path), WAFER_CALIBRATION (calibration file), ORT_THREADS.
+Env: WAFER_ONNX (model path), WAFER_CALIBRATION (calibration file), ORT_THREADS,
+     WAFER_API_KEY (required X-API-Key header for /predict*, unset disables auth),
+     WAFER_CORS_ORIGINS (comma-separated allowed origins, default "*").
 
 Each prediction carries two calibrated signals, both computed on lots the model
 never trained on:
@@ -9,6 +11,9 @@ never trained on:
                   about 1 - alpha probability per class, for wafers from new lots.
   auto_accept     True when confidence clears the selective-risk threshold, chosen so
                   the error rate among auto-accepted wafers stays under the target.
+
+Every request is logged as one JSON line with a request ID (see serving/observability.py)
+and counted in Prometheus metrics served at /metrics.
 """
 
 import hashlib
@@ -19,9 +24,17 @@ from contextlib import asynccontextmanager
 
 import numpy as np
 import onnxruntime as ort
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Response
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from serving.auth import require_api_key
+from serving.observability import (
+    ObservabilityMiddleware,
+    logger,
+    metrics_response,
+    record_predictions,
+)
 from serving.preprocess import CLASSES, to_tensor
 
 MODEL_PATH = os.environ.get("WAFER_ONNX", "serving/wafer_cnn.onnx")
@@ -40,11 +53,22 @@ async def lifespan(app):
         state["cal"] = json.load(f)
     digest = hashlib.sha256(open(MODEL_PATH, "rb").read()).hexdigest()
     state["cal_matches_model"] = digest == state["cal"]["model_sha256"]
+    if os.environ.get("WAFER_API_KEY") is None:
+        logger.info(
+            json.dumps({"event": "startup", "warning": "WAFER_API_KEY not set — auth disabled"})
+        )
     yield
     state.clear()
 
 
 app = FastAPI(title="Wafer Map Classifier", version="2.0", lifespan=lifespan)
+app.add_middleware(ObservabilityMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.environ.get("WAFER_CORS_ORIGINS", "*").split(","),
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "X-API-Key"],
+)
 
 
 class WaferRequest(BaseModel):
@@ -146,21 +170,30 @@ def calibration():
     }
 
 
-@app.post("/predict")
+@app.get("/metrics")
+def metrics():
+    body, content_type = metrics_response()
+    return Response(content=body, media_type=content_type)
+
+
+@app.post("/predict", dependencies=[Depends(require_api_key)])
 def predict(req: WaferRequest, alpha: float = AlphaQuery):
     key = check_alpha(alpha)
     t0 = time.perf_counter()
     out = describe(infer([req.wafer_map])[0], key)
     out["latency_ms"] = round((time.perf_counter() - t0) * 1000, 3)
+    record_predictions([out])
     return out
 
 
-@app.post("/predict/batch")
+@app.post("/predict/batch", dependencies=[Depends(require_api_key)])
 def predict_batch(req: BatchRequest, alpha: float = AlphaQuery):
     key = check_alpha(alpha)
     t0 = time.perf_counter()
     probs = infer(req.wafer_maps)
+    results = [describe(p, key) for p in probs]
+    record_predictions(results)
     return {
-        "results": [describe(p, key) for p in probs],
+        "results": results,
         "latency_ms": round((time.perf_counter() - t0) * 1000, 3),
     }

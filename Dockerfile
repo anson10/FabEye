@@ -10,7 +10,7 @@ WORKDIR /app
 COPY requirements-serving.txt .
 RUN pip install --no-cache-dir -r requirements-serving.txt
 
-COPY serving/__init__.py serving/app.py serving/preprocess.py serving/
+COPY serving/__init__.py serving/app.py serving/auth.py serving/observability.py serving/preprocess.py serving/
 COPY serving/wafer_cnn.onnx serving/calibration.json serving/
 
 RUN useradd --create-home appuser
