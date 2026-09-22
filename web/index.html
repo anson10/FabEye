@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Wafer Map Classifier</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0f172a; --panel: #1a2540; --line: #2b3a5e; --ink: #e6ecff;
+    --muted: #92a0c4; --accent: #4cc9f0; --good: #5fbf85; --warn: #e0a94a; --bad: #e0716f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 24px 16px 48px;
+  }
+  main { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.lede { color: var(--muted); margin: 0 0 24px; font-size: 14px; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 18px; margin-bottom: 18px;
+  }
+  label { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .04em; margin-bottom: 6px; }
+  input[type=text], input[type=number], input[type=url] {
+    width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--line);
+    background: #0d1730; color: var(--ink); font-size: 14px;
+  }
+  .row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+  .row > div { flex: 1; min-width: 180px; }
+  .grid-wrap { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  #grid { display: inline-grid; gap: 2px; border: 1px solid var(--line); padding: 4px;
+    border-radius: 6px; background: #0d1730; }
+  #grid div {
+    width: 18px; height: 18px; border-radius: 2px; cursor: pointer;
+  }
+  .cell-0 { background: #0d1730; }
+  .cell-1 { background: #375a8c; }
+  .cell-2 { background: var(--bad); }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  button {
+    background: var(--accent); color: #041019; border: none; border-radius: 6px;
+    padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  button.secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  #result { min-width: 260px; }
+  .pill { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: 12px;
+    font-weight: 600; }
+  .pill.accept { background: rgba(95,191,133,.18); color: var(--good); }
+  .pill.review { background: rgba(224,169,74,.18); color: var(--warn); }
+  .bar-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 4px 0; }
+  .bar-row .bar { flex: 1; height: 8px; border-radius: 4px; background: #0d1730; overflow: hidden; }
+  .bar-row .bar > div { height: 100%; background: var(--accent); }
+  .error { color: var(--bad); font-size: 13px; white-space: pre-wrap; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  code { background: #0d1730; padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Wafer Map Classifier</h1>
+  <p class="lede">A standalone page that calls the FastAPI service over HTTP. It holds no model weights and does no inference itself.</p>
+
+  <div class="panel">
+    <div class="row">
+      <div>
+        <label for="apiBase">API base URL</label>
+        <input type="url" id="apiBase" value="http://localhost:8000">
+      </div>
+      <div>
+        <label for="apiKey">X-API-Key (optional in dev)</label>
+        <input type="text" id="apiKey" placeholder="leave blank if auth is disabled">
+      </div>
+      <div style="max-width:120px">
+        <label for="alpha">Alpha</label>
+        <input type="number" id="alpha" value="0.1" step="0.05" min="0.05" max="0.1">
+      </div>
+    </div>
+    <div class="hint">Stored only in this browser tab's memory — nothing here is saved or sent anywhere but the API base URL above.</div>
+  </div>
+
+  <div class="panel grid-wrap">
+    <div>
+      <label>Wafer map — click a die to cycle: good → defective → outside</label>
+      <div id="grid"></div>
+      <div class="controls">
+        <button type="button" id="btnPredict">Predict</button>
+        <button type="button" class="secondary" id="btnClear">Clear</button>
+        <button type="button" class="secondary" id="btnRandom">Random defect</button>
+      </div>
+    </div>
+    <div id="result">
+      <label>Result</label>
+      <div id="resultBody" style="font-size:14px;">Nothing yet — click Predict.</div>
+    </div>
+  </div>
+</main>
+
+<script>
+const SIZE = 20;
+const grid = document.getElementById("grid");
+grid.style.gridTemplateColumns = `repeat(${SIZE}, 18px)`;
+let state = [];
+
+function inWafer(r, c) {
+  const cx = (SIZE - 1) / 2, cy = (SIZE - 1) / 2, rad = SIZE / 2;
+  return Math.hypot(r - cy, c - cx) <= rad;
+}
+
+function buildGrid() {
+  state = Array.from({ length: SIZE }, (_, r) =>
+    Array.from({ length: SIZE }, (_, c) => (inWafer(r, c) ? 1 : 0))
+  );
+  render();
+}
+
+function render() {
+  grid.innerHTML = "";
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const cell = document.createElement("div");
+      cell.className = `cell-${state[r][c]}`;
+      cell.title = `row ${r}, col ${c}`;
+      cell.addEventListener("click", () => {
+        if (!inWafer(r, c) && state[r][c] === 0) return; // can't paint outside back in
+        state[r][c] = inWafer(r, c) ? (state[r][c] === 1 ? 2 : 1) : 0;
+        render();
+      });
+      grid.appendChild(cell);
+    }
+  }
+}
+
+document.getElementById("btnClear").addEventListener("click", buildGrid);
+document.getElementById("btnRandom").addEventListener("click", () => {
+  buildGrid();
+  const cx = Math.floor(SIZE / 2), cy = Math.floor(SIZE / 2);
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      if (inWafer(r, c) && Math.hypot(r - cy, c - cx) < 3) state[r][c] = 2;
+    }
+  }
+  render();
+});
+
+async function predict() {
+  const base = document.getElementById("apiBase").value.replace(/\/$/, "");
+  const key = document.getElementById("apiKey").value;
+  const alpha = document.getElementById("alpha").value;
+  const body = document.getElementById("resultBody");
+  const btn = document.getElementById("btnPredict");
+  btn.disabled = true;
+  body.innerHTML = "Calling the API…";
+  try {
+    const headers = { "Content-Type": "application/json" };
+    if (key) headers["X-API-Key"] = key;
+    const res = await fetch(`${base}/predict?alpha=${alpha}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ wafer_map: state }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      body.innerHTML = `<div class="error">HTTP ${res.status}\n${JSON.stringify(data.detail ?? data, null, 1)}</div>`;
+      return;
+    }
+    const pillClass = data.auto_accept ? "accept" : "review";
+    const pillText = data.auto_accept ? "auto-accepted" : "needs review";
+    let bars = data.top3.map(t => `
+      <div class="bar-row">
+        <span style="width:64px">${t.pattern}</span>
+        <div class="bar"><div style="width:${(t.probability * 100).toFixed(1)}%"></div></div>
+        <span>${(t.probability * 100).toFixed(1)}%</span>
+      </div>`).join("");
+    body.innerHTML = `
+      <div style="font-size:20px;font-weight:700;margin-bottom:6px">${data.pattern}</div>
+      <span class="pill ${pillClass}">${pillText}</span>
+      <div style="margin:10px 0">${bars}</div>
+      <div style="font-size:12px;color:var(--muted)">
+        prediction set (α=${data.alpha}): ${data.prediction_set.join(", ")}<br>
+        latency: ${data.latency_ms} ms
+      </div>`;
+  } catch (err) {
+    body.innerHTML = `<div class="error">Could not reach the API at ${base}.\n${err}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById("btnPredict").addEventListener("click", predict);
+buildGrid();
+</script>
+</body>
+</html>
