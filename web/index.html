@@ -137,11 +137,51 @@ function render() {
 document.getElementById("btnClear").addEventListener("click", buildGrid);
 document.getElementById("btnRandom").addEventListener("click", () => {
   buildGrid();
-  const cx = Math.floor(SIZE / 2), cy = Math.floor(SIZE / 2);
-  for (let r = 0; r < SIZE; r++) {
-    for (let c = 0; c < SIZE; c++) {
-      if (inWafer(r, c) && Math.hypot(r - cy, c - cx) < 3) state[r][c] = 2;
+  const cx = (SIZE - 1) / 2, cy = (SIZE - 1) / 2;
+  const mark = (r, c) => { if (inWafer(r, c)) state[r][c] = 2; };
+  const kinds = ["center", "donut", "edge-ring", "edge-loc", "loc", "scratch", "random"];
+  const kind = kinds[Math.floor(Math.random() * kinds.length)];
+
+  if (kind === "center" || kind === "loc") {
+    // a blob at the middle, or offset toward a random spot for "loc"
+    const ox = kind === "center" ? 0 : (Math.random() - 0.5) * SIZE * 0.5;
+    const oy = kind === "center" ? 0 : (Math.random() - 0.5) * SIZE * 0.5;
+    const rad = 1.5 + Math.random() * 2;
+    for (let r = 0; r < SIZE; r++)
+      for (let c = 0; c < SIZE; c++)
+        if (Math.hypot(r - cy - oy, c - cx - ox) < rad) mark(r, c);
+  } else if (kind === "donut") {
+    // a ring partway between the centre and the edge
+    const rMid = SIZE * 0.28, thick = 1 + Math.random();
+    for (let r = 0; r < SIZE; r++)
+      for (let c = 0; c < SIZE; c++)
+        if (Math.abs(Math.hypot(r - cy, c - cx) - rMid) < thick) mark(r, c);
+  } else if (kind === "edge-ring") {
+    // failures all the way around the rim
+    for (let r = 0; r < SIZE; r++)
+      for (let c = 0; c < SIZE; c++)
+        if (Math.hypot(r - cy, c - cx) > SIZE / 2 - 1.6) mark(r, c);
+  } else if (kind === "edge-loc") {
+    // failures on one arc of the rim, at a random angle
+    const angle = Math.random() * 2 * Math.PI, spread = Math.PI / 5;
+    for (let r = 0; r < SIZE; r++)
+      for (let c = 0; c < SIZE; c++) {
+        const d = Math.hypot(r - cy, c - cx);
+        let da = Math.abs(Math.atan2(r - cy, c - cx) - angle);
+        da = Math.min(da, 2 * Math.PI - da);
+        if (d > SIZE / 2 - 2.5 && da < spread) mark(r, c);
+      }
+  } else if (kind === "scratch") {
+    // a thin line across the wafer at a random angle
+    const angle = Math.random() * Math.PI, len = SIZE * 0.6;
+    for (let t = -len / 2; t < len / 2; t += 0.5) {
+      mark(Math.round(cy + t * Math.sin(angle)), Math.round(cx + t * Math.cos(angle)));
     }
+  } else {
+    // scattered failures with no spatial pattern
+    for (let r = 0; r < SIZE; r++)
+      for (let c = 0; c < SIZE; c++)
+        if (inWafer(r, c) && Math.random() < 0.04) mark(r, c);
   }
   render();
 });
