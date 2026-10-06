@@ -91,7 +91,7 @@ def predict(model, emb, logits, targets, nb, off, pad, bs=1024):
     return torch.cat(out).numpy()
 
 
-def run(mode, seed, data, epochs, frac=1.0, select=True):
+def run(mode, seed, data, epochs, frac=1.0):
     emb, logits, lot, slot, y, split, members = data
     rng = np.random.default_rng(seed)
     torch.manual_seed(seed)
