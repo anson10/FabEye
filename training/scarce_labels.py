@@ -2,8 +2,10 @@
 
 For each label fraction f, retrain the CNN on f of the training labels, embed the
 wafers of all labelled lots, then compare encoder-only, none, shuffled and
-context heads. The head also sees only f of its labels. No model selection on
-labels is used, so every fraction is treated the same.
+context heads. The head trains on only f of its labels. The encoder trains for a
+fixed number of steps with no model selection. The head keeps its best epoch on
+the held-out head-validation lots, which are not subsampled, so selection uses the
+same labels at every fraction and applies equally to all head modes.
 
 Usage: WM_SPLIT=lot python training/scarce_labels.py --seeds 3
 """
@@ -145,7 +147,7 @@ if __name__ == "__main__":
         for mode in ("none", "shuffled", "context"):
             runs = []
             for seed in range(a.seeds):
-                ids, pr, _ = run(mode, seed, data, a.epochs, frac=f, select=False)
+                ids, pr, _ = run(mode, seed, data, a.epochs, frac=f)
                 runs.append(score(y[ids], pr))
             res[mode] = {
                 "macro_f1_mean": float(np.mean([r["macro_f1"] for r in runs])),
