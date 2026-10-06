@@ -65,8 +65,22 @@ def test_rejects_bad_values(client):
     assert client.post("/predict", json={"wafer_map": bad}).status_code == 422
 
 
+@pytest.mark.parametrize("value", [-1, 258])
+def test_rejects_out_of_range_values_without_wrapping(client, value):
+    # -1 and 258 overflow or wrap on a uint8 cast, so they must be caught first
+    bad = disc()
+    bad[0][0] = value
+    assert client.post("/predict", json={"wafer_map": bad}).status_code == 422
+
+
 def test_rejects_non_2d(client):
     assert client.post("/predict", json={"wafer_map": [1, 2, 3]}).status_code == 422
+
+
+def test_rejects_empty_and_oversized_maps(client):
+    assert client.post("/predict", json={"wafer_map": [[]]}).status_code == 422
+    big = [[1] * 513]
+    assert client.post("/predict", json={"wafer_map": big}).status_code == 422
 
 
 def test_batch_matches_single(client):
