@@ -1,5 +1,7 @@
 # FabEye
 
+[![tests](https://github.com/anson10/FabEye/actions/workflows/tests.yml/badge.svg)](https://github.com/anson10/FabEye/actions/workflows/tests.yml)
+
 Wafer map failure pattern recognition on the real WM-811K dataset, with leakage-aware evaluation, calibrated uncertainty, and a deployable service.
 
 The project asks what a fab would ask before trusting a classifier: does the score survive on lots the model has never seen, how often is it wrong on rare patterns, and when should a wafer go to an engineer? It also reports a hypothesis that did not pan out.
@@ -45,7 +47,7 @@ Every score is macro-F1 on the test set, which weights the rare patterns equally
 
 ### Does lot context help? No.
 
-Wafers in a lot share tools and process history. In the raw labels, two defective wafers from one lot share a pattern 92.7% of the time, against 23.7% by chance. A small transformer refined each wafer's prediction using its lot neighbours' embeddings, never their labels.
+Wafers in a lot share tools and process history. In the raw labels, two defective wafers from one lot share a pattern 92.7% of the time, against 23.7% by chance (`evaluation/lot_clustering.py`). A small transformer refined each wafer's prediction using its lot neighbours' embeddings, never their labels.
 
 | Head on frozen CNN | Macro-F1, 3 seeds |
 |---|---|
@@ -100,6 +102,7 @@ kaggle datasets download -d qingyi/wm811k-wafer-map -p data/wm811k --unzip
 
 # Split by lot (default). Set WM_SPLIT=random for the leaky comparison split.
 python data/wm811k.py
+python evaluation/lot_clustering.py   # within-lot label clustering
 python training/train_wm.py --model rf  --seed 0
 python training/train_wm.py --model cnn --seed 0
 python training/train_wm.py --model gnn --seed 0 --bs 64
@@ -160,11 +163,13 @@ The image is 681 MB, runs as a non-root user, and includes a health check. Run t
 | `models/wm_models.py`, `models/lot_context.py` | CNN, GNN and the lot-context head |
 | `training/` | Training, embedding extraction, lot-context, label-scarcity and conformal experiments |
 | `evaluation/conformal.py` | Conformal sets and selective risk control |
+| `evaluation/lot_clustering.py` | Within-lot label clustering statistic |
 | `serving/` | ONNX export, calibration, benchmark, FastAPI app |
 
 ## Limitations
 
 - **Single seed for the model comparison.** Only the lot-context head has three seeds.
+- **Label-scarcity heads are selected on full labels.** At every label fraction, the head keeps its best epoch on held-out validation lots whose labels are not subsampled. This applies equally to every head mode, so the context comparison stands, but low-fraction head scores are somewhat optimistic.
 - **Rare classes are noisy.** Near-full has 24 test wafers and Donut 87.
 - **No probability calibration** was applied before the conformal step.
 - **The GNN is not deployed.** Its scatter-based message passing does not export cleanly to ONNX.
