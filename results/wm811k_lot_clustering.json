@@ -1,0 +1,6 @@
+{
+ "defective_wafers": 25519,
+ "lots": 8047,
+ "within_lot_same_pattern": 0.9272846709687391,
+ "chance_same_pattern": 0.23721597705999406
+}
