@@ -166,6 +166,17 @@ The image is 681 MB, runs as a non-root user, and includes a health check. Run t
 | `evaluation/lot_clustering.py` | Within-lot label clustering statistic |
 | `serving/` | ONNX export, calibration, benchmark, FastAPI app |
 
+## Used by WaferLens
+
+[WaferLens](https://github.com/anson10/waferLens) is a fab yield-excursion platform that
+calls this service for every sorted wafer, through the same `/predict/batch` API, instead of
+training its own classifier. Its simulated fab logs which wafers carry an injected pattern,
+so it can test what WM-811K can't: how the model and its guarantees behave on a different
+fab, with timestamps and known causes. On 24,090 simulated wafers macro-F1 was 0.909, but
+Random-class coverage fell to 52% against the ~90% target, because strong uniform defect
+fields look like Near-full; 450 maps got an empty prediction set. Full report:
+[docs/fabeye_eval.md](https://github.com/anson10/waferLens/blob/main/docs/fabeye_eval.md).
+
 ## Limitations
 
 - **Single seed for the model comparison.** Only the lot-context head has three seeds.
