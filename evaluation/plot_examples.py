@@ -1,3 +1,12 @@
+"""Grid of example wafer maps per failure pattern: the README's hero figure.
+
+Usage: python evaluation/plot_examples.py
+Writes results/wm811k_examples.png
+"""
+
+import os
+import sys
+
 import matplotlib
 
 matplotlib.use("Agg")  # WSL has no display, so save to a file
@@ -6,7 +15,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import ListedColormap
 
-from data.wm811k import load_processed
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from data.wm811k import load_processed  # noqa: E402
 
 N_PER_CLASS = 5
 OUTPUT = "results/wm811k_examples.png"

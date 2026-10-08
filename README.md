@@ -52,15 +52,15 @@ Wafers in a lot share tools and process history. In the raw labels, two defectiv
 | Head on frozen CNN | Macro-F1, 3 seeds |
 |---|---|
 | Frozen CNN only | 0.858 |
-| No neighbours | 0.879 +- 0.002 |
-| Neighbours from a random other lot | 0.863 +- 0.016 |
-| Real lot neighbours | 0.877 +- 0.010 |
+| No neighbours | 0.879 ± 0.002 |
+| Neighbours from a random other lot | 0.863 ± 0.016 |
+| Real lot neighbours | 0.877 ± 0.010 |
 
 Real neighbours match the no-neighbour head, so lot context added nothing. Most of the gain over the frozen CNN comes from training a head at all.
 
 ![Label scarcity](results/wm811k_scarce_labels.png)
 
-The same holds when the CNN and head are trained on 1%, 5% or 20% of the labels. Real neighbours never beat the no-neighbour head by more than seed noise. The likeliest reason is that a wafer's own map already shows its pattern. Labels fall from 0.853 to 0.559 macro-F1 between 100% and 1% of labels, which is the real cost of scarce labels.
+The same holds when the CNN and head are trained on 1%, 5% or 20% of the labels. Real neighbours never beat the no-neighbour head by more than seed noise. The likeliest reason is that a wafer's own map already shows its pattern. Macro-F1 falls from 0.853 to 0.559 between 100% and 1% of labels, which is the real cost of scarce labels.
 
 ### Calibrated uncertainty on unseen lots
 
@@ -103,6 +103,7 @@ kaggle datasets download -d qingyi/wm811k-wafer-map -p data/wm811k --unzip
 # Split by lot (default). Set WM_SPLIT=random for the leaky comparison split.
 python data/wm811k.py
 python evaluation/lot_clustering.py   # within-lot label clustering
+python evaluation/plot_examples.py    # example maps per pattern (README figure)
 python training/train_wm.py --model rf  --seed 0
 python training/train_wm.py --model cnn --seed 0
 python training/train_wm.py --model gnn --seed 0 --bs 64
@@ -164,6 +165,7 @@ The image is 681 MB, runs as a non-root user, and includes a health check. Run t
 | `training/` | Training, embedding extraction, lot-context, label-scarcity and conformal experiments |
 | `evaluation/conformal.py` | Conformal sets and selective risk control |
 | `evaluation/lot_clustering.py` | Within-lot label clustering statistic |
+| `evaluation/plot_examples.py` | Example wafer maps per pattern (the README figure) |
 | `serving/` | ONNX export, calibration, benchmark, FastAPI app |
 
 ## Used by WaferLens
