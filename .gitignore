@@ -21,8 +21,6 @@ legacy-v1/results/*
 
 # Personal / local-only material — never pushed
 CLAUDE.md
-GIT_INTEGRATED.md
-git_workflow.md
 report.md
 Week*_report.md
 INTERVIEW_PREP.md
