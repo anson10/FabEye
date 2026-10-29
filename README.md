@@ -8,6 +8,8 @@ The project asks what a fab would ask before trusting a classifier: does the sco
 
 ![Example wafer maps by failure pattern](results/wm811k_examples.png)
 
+*Five random labelled wafers per pattern (seed 0), not hand-picked. Red dies failed, blue passed. Some WM-811K labels are borderline, such as several Donut and Loc examples here, which is part of why those classes are harder.*
+
 ## Why this is different
 
 Wafer-map classifiers on WM-811K are common. Most report accuracy on a random per-wafer split and stop there. Three things here are less common, and each is backed by a result below rather than asserted:
