@@ -8,6 +8,9 @@ Writes two JSON files into --out:
                        shows if the browser cannot run the model.
   fabeye_parity.json   gallery wafers plus --parity-extra more random test wafers, with
                        reference probabilities, for the browser/Python parity test.
+  fabeye_threshold_curve.json  for the review-threshold slider: at each confidence threshold,
+                       the share of ALL test-lot wafers classified without review and the
+                       error rate among those, from the served ONNX model.
 
 The reference output uses serving/preprocess.py, serving/wafer_cnn.onnx and
 serving/calibration.json exactly as serving/app.py does (alpha 0.1).
@@ -122,6 +125,33 @@ def main():
         json.dump({"meta": meta, "samples": gallery}, f, separators=(",", ":"))
     with open(os.path.join(args.out, "fabeye_parity.json"), "w") as f:
         json.dump({"meta": meta, "samples": gallery + extra}, f, separators=(",", ":"))
+    # Review-threshold curve over the whole test split, with the served model.
+    conf, right = [], []
+    for start in range(0, len(test), 256):
+        idx = test[start : start + 256]
+        x = np.stack([to_tensor(d["maps"][i]) for i in idx])
+        logits = sess.run(None, {"wafer": x})[0].astype(np.float64)
+        e = np.exp(logits - logits.max(1, keepdims=True))
+        p = e / e.sum(1, keepdims=True)
+        conf.append(p.max(1))
+        right.append(p.argmax(1) == d["y"][idx])
+    conf, right = np.concatenate(conf), np.concatenate(right)
+    grid = sorted({round(t, 3) for t in np.arange(0.50, 0.9951, 0.005)})
+    rows = []
+    for t in [*grid, thr_conf]:
+        acc = conf >= t
+        rows.append({
+            "threshold": round(float(t), 4),
+            "accepted": round(float(acc.mean()), 4),
+            "error": round(float(1 - right[acc].mean()), 4) if acc.any() else None,
+        })
+    at = rows.pop()  # the served threshold: must reproduce calibration.json
+    assert abs(at["accepted"] - cal["selective"]["unseen_lot_accept_rate"]) < 5e-4, at
+    assert abs(at["error"] - cal["selective"]["unseen_lot_error_among_accepted"]) < 5e-4, at
+    with open(os.path.join(args.out, "fabeye_threshold_curve.json"), "w") as f:
+        json.dump({"meta": {**meta, "wafers": int(len(test)), "served_threshold": thr_conf,
+                            "at_served_threshold": at}, "curve": rows}, f, separators=(",", ":"))
+
     n_rev = sum(not g["reference"]["auto_accept"] for g in gallery)
     print(f"gallery {len(gallery)} wafers ({n_rev} sent to review), parity {len(gallery) + len(extra)}")
 
